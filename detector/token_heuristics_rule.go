@@ -82,6 +82,12 @@ func (r *TokenHeuristicsRule) Analyze(text string) []Finding {
 			{urlSafePattern, "urlsafe"},
 		}
 
+		// Calculate byte offset for this line
+		lineOffset := 0
+		for i := 0; i < lineNum; i++ {
+			lineOffset += len(lines[i]) + 1 // +1 for newline
+		}
+
 		for _, p := range allPatterns {
 			matches := p.pattern.FindAllStringIndex(line, -1)
 			for _, match := range matches {
@@ -112,12 +118,17 @@ func (r *TokenHeuristicsRule) Analyze(text string) []Finding {
 						confidence = "high"
 					}
 
+					byteStart := lineOffset + match[0]
+					byteEnd := lineOffset + match[1]
+
 					findings = append(findings, Finding{
 						Type:       "token_heuristics",
 						Severity:   severity,
 						Confidence: confidence,
 						Reason:     token,
 						LineNumber: lineNum + 1,
+						ByteStart:  byteStart,
+						ByteEnd:    byteEnd,
 						RawMatch:    token,
 					})
 				}
@@ -255,11 +266,4 @@ func (r *TokenHeuristicsRule) calculateScore(token string, hasAuthKeyword bool, 
 	return score
 }
 
-// abs returns absolute value
-func abs(x int) int {
-	if x < 0 {
-		return -x
-	}
-	return x
-}
 
