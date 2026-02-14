@@ -10,24 +10,24 @@ Pasteguard is a secret detection tool that can operate in two modes:
 
 ```mermaid
 graph TB
-    subgraph "Entry Points"
+    subgraph Entry["Entry Points"]
         CLI[CLI Mode<br/>main.go]
         HTTP[HTTP Server Mode<br/>server/server.go]
     end
 
-    subgraph "Core Engine"
+    subgraph Core["Core Engine"]
         Engine[Detector Engine<br/>detector/engine.go]
         Rules[Rule Interface<br/>detector/rule.go]
     end
 
-    subgraph "Detection Rules"
+    subgraph Detection["Detection Rules"]
         PEM[PEM Rule<br/>detector/pem_rule.go]
         JWT[JWT Rule<br/>detector/jwt_rule.go]
         Password[Password Rule<br/>detector/password_rule.go]
         Token[Token Heuristics Rule<br/>detector/token_heuristics_rule.go]
     end
 
-    subgraph "Processing Pipeline"
+    subgraph Pipeline["Processing Pipeline"]
         Analyze[Analyze Text]
         Merge[Merge Overlapping Findings]
         Sort[Sort Findings Deterministically]
@@ -35,21 +35,21 @@ graph TB
         Score[Calculate Risk Score]
     end
 
-    subgraph "HTTP Server Features"
+    subgraph Security["HTTP Server Features"]
         RateLimit[Rate Limiter<br/>100 req/min per IP]
         SizeLimit[Size Limiter<br/>1MB max]
-        Security[No Input Logging]
+        NoLog[No Input Logging]
     end
 
-    subgraph "Output"
-        JSON[JSON Response<br/>overall_risk<br/>risk_rationale<br/>findings[]]
+    subgraph Output["Output"]
+        JSON[JSON Response<br/>overall_risk<br/>risk_rationale<br/>findings]
     end
 
     CLI --> Engine
     HTTP --> RateLimit
     RateLimit --> SizeLimit
-    SizeLimit --> Security
-    Security --> Engine
+    SizeLimit --> NoLog
+    NoLog --> Engine
 
     Engine --> Rules
     Rules --> PEM
@@ -73,7 +73,7 @@ graph TB
     style Engine fill:#fff4e1
     style RateLimit fill:#ffe1e1
     style SizeLimit fill:#ffe1e1
-    style Security fill:#ffe1e1
+    style NoLog fill:#ffe1e1
     style JSON fill:#e1ffe1
 ```
 
