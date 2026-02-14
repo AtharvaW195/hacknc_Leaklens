@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"pasteguard/detector"
+	"pasteguard/server"
 )
 
 type Result struct {
@@ -17,6 +18,31 @@ type Result struct {
 }
 
 func main() {
+	// Check if "serve" command is provided
+	if len(os.Args) > 1 && os.Args[1] == "serve" {
+		runServer()
+		return
+	}
+
+	// Otherwise, run CLI mode
+	runCLI()
+}
+
+func runServer() {
+	// Parse serve command flags
+	serveFlags := flag.NewFlagSet("serve", flag.ExitOnError)
+	addr := serveFlags.String("addr", ":8787", "Address to listen on")
+	serveFlags.Parse(os.Args[2:])
+
+	// Create and start server
+	srv := server.NewServer()
+	if err := srv.Start(*addr); err != nil {
+		fmt.Fprintf(os.Stderr, "Error starting server: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func runCLI() {
 	// Manually parse --text flag to handle empty strings
 	// Go's flag package doesn't handle --text "" well
 	var textValue string
