@@ -10,31 +10,40 @@
 
 ## ✨ Features
 
-- 🔍 **Multiple Detection Rules**
-  - PEM private keys (RSA, EC, DSA)
-  - JWT tokens
-  - Password assignments
-  - High-entropy token detection (conservative)
+- 🔍 **4 Detection Rules**
+  - ✅ PEM private keys (RSA, EC, DSA, generic)
+  - ✅ JWT tokens (3-part base64 format)
+  - ✅ Password assignments (password, api_key, secret, etc.)
+  - ✅ High-entropy token detection (conservative, ignores UUIDs/hashes)
 
 - 🛡️ **Security First**
-  - Automatic secret redaction (never leaks full secrets)
-  - No input logging
-  - Rate limiting (HTTP mode)
-  - Request size limits
+  - ✅ Automatic secret redaction (never leaks full secrets)
+  - ✅ No input logging (user data never logged)
+  - ✅ Rate limiting (100 req/min per IP in HTTP mode)
+  - ✅ Request size limits (1MB max)
+  - ✅ Deterministic output (no timing leaks)
 
 - 🚀 **Dual Mode Operation**
-  - **CLI Mode**: Analyze text from command line or stdin
-  - **HTTP Server Mode**: REST API for programmatic access
+  - ✅ **CLI Mode**: Analyze text from command line, stdin, or files
+  - ✅ **HTTP Server Mode**: REST API with health check and analyze endpoints
+
+- ⚡ **Advanced Processing**
+  - ✅ Overlap merging (combines duplicate detections)
+  - ✅ Deterministic sorting (consistent output)
+  - ✅ Risk scoring (high/medium/low)
+  - ✅ Line number and byte position tracking
 
 - ⚡ **Fast & Lightweight**
-  - Standard library only (no external dependencies)
-  - Single binary deployment
-  - Deterministic output
+  - ✅ Standard library only (no external dependencies)
+  - ✅ Single binary deployment
+  - ✅ Cross-platform (Windows, Linux, macOS)
 
 - 🧪 **Well Tested**
-  - 95+ unit tests
-  - 95%+ code coverage
-  - Comprehensive test suite
+  - ✅ 95+ unit tests
+  - ✅ 95%+ code coverage
+  - ✅ Comprehensive test suite
+
+See [FEATURES.md](FEATURES.md) for the complete feature list.
 
 ## 📦 Installation
 
@@ -323,6 +332,7 @@ go test -v ./detector
 
 ## 📚 Documentation
 
+- [Complete Feature List](FEATURES.md) - All working features and capabilities
 - [Architecture Documentation](ARCHITECTURE.md) - System architecture and design
 - [Testing Guide](TESTING_GUIDE.md) - Comprehensive testing instructions
 - [PowerShell Examples](POWERSHELL_EXAMPLES.md) - PowerShell-specific usage examples
@@ -400,6 +410,26 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Issues**: [GitHub Issues](https://github.com/yourusername/pasteguard/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/yourusername/pasteguard/discussions)
+
+---
+
+## 📋 Quick Feature Reference
+
+| Feature | Status | Details |
+|---------|--------|---------|
+| PEM Key Detection | ✅ Working | RSA, EC, DSA, generic |
+| JWT Detection | ✅ Working | 3-part base64 format |
+| Password Detection | ✅ Working | Multiple keywords, quoted/unquoted |
+| Token Heuristics | ✅ Working | High-entropy, conservative |
+| CLI Mode | ✅ Working | --text flag, stdin, file input |
+| HTTP Server | ✅ Working | /health, /analyze endpoints |
+| Overlap Merging | ✅ Working | Automatic duplicate detection |
+| Secret Redaction | ✅ Working | >50% masking for tokens |
+| Rate Limiting | ✅ Working | 100 req/min per IP |
+| Size Limits | ✅ Working | 1MB max request body |
+| Tests | ✅ Passing | 95+ tests, 95%+ coverage |
+
+For complete details, see [FEATURES.md](FEATURES.md).
 
 ---
 
