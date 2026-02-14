@@ -1,0 +1,7 @@
+# Backend secrets – never commit
+backend/.env
+
+# OS / editor
+.DS_Store
+*.swp
+*.swo

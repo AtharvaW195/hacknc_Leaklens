@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Privacy Guardrail Test</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #eee;
+            border-radius: 5px;
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Privacy Guardrail Test Page</h1>
+
+    <div class="section">
+        <h2>Link scanning test</h2>
+        <p>With the extension loaded, the whole page is scanned and links to blocklisted domains are flagged (red dashed border, ⚠️). Clicking a flagged link should show a warning dialog.</p>
+        <p><strong>Amazon (blocklisted):</strong></p>
+        <ul>
+            <li><a href="https://www.amazon.com">Amazon homepage</a></li>
+            <li><a href="https://amazon.com/gp/bestsellers">Amazon Best Sellers</a></li>
+        </ul>
+        <p><strong>Other blocklisted links:</strong></p>
+        <ul>
+            <li><a href="https://www.google.com">Google</a></li>
+            <li><a href="https://facebook.com">Facebook</a></li>
+            <li><a href="http://example.com">Example</a></li>
+            <li><a href="http://phishing-site.net">Phishing</a></li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Secure File Upload</h2>
+        <p>Try uploading a file below. The extension should offer a secure option.</p>
+        <input type="file" id="file-upload">
+    </div>
+
+    <div class="section">
+        <h2>Dynamic content (scanning test)</h2>
+        <p>Click below to inject new links. The extension should flag them after they appear (whole-page scan includes new nodes).</p>
+        <button id="add-amazon-link">Add Amazon link</button>
+        <button id="add-bad-link">Add other flagged link</button>
+        <div id="dynamic-area"></div>
+    </div>
+
+    <script>
+        document.getElementById('add-amazon-link').addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.href = "https://www.amazon.com";
+            link.textContent = "Amazon (dynamically added)";
+            document.getElementById('dynamic-area').appendChild(link);
+        });
+        document.getElementById('add-bad-link').addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.href = "https://facebook.com";
+            link.textContent = "Facebook (dynamically added)";
+            document.getElementById('dynamic-area').appendChild(link);
+        });
+    </script>
+</body>
+
+</html>
