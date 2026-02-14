@@ -99,6 +99,8 @@ pasteguard serve --addr :8080
 ```
 
 **Test the API:**
+
+**Using curl (Unix/Linux/Git Bash):**
 ```bash
 # Health check
 curl http://localhost:8787/health
@@ -107,6 +109,30 @@ curl http://localhost:8787/health
 curl -X POST http://localhost:8787/analyze \
   -H "Content-Type: application/json" \
   -d '{"text": "password = secret123"}'
+```
+
+**Using PowerShell (Windows):**
+```powershell
+# Health check
+Invoke-RestMethod -Uri http://localhost:8787/health
+
+# Analyze text
+$body = @{
+    text = "password = secret123"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri http://localhost:8787/analyze `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+**Using curl.exe in PowerShell (if curl.exe is available):**
+```powershell
+# Use curl.exe explicitly (not the PowerShell alias)
+curl.exe -X POST http://localhost:8787/analyze `
+  -H "Content-Type: application/json" `
+  -d '{\"text\": \"password = secret123\"}'
 ```
 
 ## 📖 Usage
@@ -137,19 +163,49 @@ pasteguard serve --addr :8787
 #### Endpoints
 
 **GET /health**
+
+*Using curl (Unix/Linux/Git Bash):*
 ```bash
 curl http://localhost:8787/health
 ```
+
+*Using PowerShell:*
+```powershell
+Invoke-RestMethod -Uri http://localhost:8787/health
+```
+
 Response:
 ```json
 {"status": "ok"}
 ```
 
 **POST /analyze**
+
+*Using curl (Unix/Linux/Git Bash):*
 ```bash
 curl -X POST http://localhost:8787/analyze \
   -H "Content-Type: application/json" \
   -d '{"text": "password = secret123"}'
+```
+
+*Using PowerShell (Recommended):*
+```powershell
+$body = @{
+    text = "password = secret123"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri http://localhost:8787/analyze `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+*Using curl.exe in PowerShell (if available):*
+```powershell
+# Note: Use curl.exe explicitly, not the PowerShell curl alias
+curl.exe -X POST http://localhost:8787/analyze `
+  -H "Content-Type: application/json" `
+  -d "{\"text\": \"password = secret123\"}"
 ```
 
 Response:
@@ -167,18 +223,6 @@ Response:
     }
   ]
 }
-```
-
-#### PowerShell Example
-```powershell
-$body = @{
-    text = "password = `"secret123`""
-} | ConvertTo-Json
-
-Invoke-RestMethod -Uri http://localhost:8787/analyze `
-  -Method POST `
-  -ContentType "application/json" `
-  -Body $body
 ```
 
 ## 🔍 Detection Rules
@@ -281,6 +325,7 @@ go test -v ./detector
 
 - [Architecture Documentation](ARCHITECTURE.md) - System architecture and design
 - [Testing Guide](TESTING_GUIDE.md) - Comprehensive testing instructions
+- [PowerShell Examples](POWERSHELL_EXAMPLES.md) - PowerShell-specific usage examples
 - [ASCII Architecture Diagram](architecture-diagram.txt) - Text-based architecture diagram
 
 ## 🏗️ Architecture
