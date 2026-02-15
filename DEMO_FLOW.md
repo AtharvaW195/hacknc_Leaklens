@@ -34,6 +34,7 @@
 - `extension/manifest.json` lines 16-17: Background service worker (`background.js`)
 - `extension/manifest.json` lines 22-33: Content script (`content.js`) injected on all URLs
 - `extension/manifest.json` lines 19-21: Popup UI (`popup.html`) accessible via extension icon
+- `extension/dashboard.html`: Dashboard UI with Home, Metrics, and Activity pages
 
 **Backend Server (Separate Module):**
 - `backend/main.go` lines 98-435: Main function starts server on port 8080
@@ -46,7 +47,7 @@
 - **`detector/`**: Core secret detection engine (`engine.go`, rule implementations: `pem_rule.go`, `jwt_rule.go`, `password_rule.go`, `token_heuristics_rule.go`)
 - **`server/`**: HTTP server implementation (`server.go` with rate limiting, CORS, security)
 - **`backend/`**: Separate backend module for file uploads and one-time links (`main.go`)
-- **`extension/`**: Browser extension (`content.js`, `background.js`, `popup.html`, `manifest.json`)
+- **`extension/`**: Browser extension (`content.js`, `background.js`, `popup.html`, `dashboard.html`, `manifest.json`)
 - **`e2e/`**: End-to-end tests (`tests/*.spec.js`, `testapp/` for test pages)
 
 ## Config and required env vars
@@ -585,4 +586,91 @@ Alert appears in extension popup
 - Verify Go proxy is running on port 8080
 - Check browser console for CORS errors
 - Ensure extension has permission to access localhost:8080
+
+# Dashboard
+
+## Overview
+
+The Dashboard provides a comprehensive view of extension activity, metrics, and events. It's accessible from the extension popup via the "📊 Open Dashboard" link.
+
+## Accessing the Dashboard
+
+1. **From Extension Popup:**
+   - Click the extension icon to open the popup
+   - Scroll to the bottom and click "📊 Open Dashboard"
+   - Dashboard opens in a new tab
+
+2. **Direct URL:**
+   - Navigate to `chrome-extension://<extension-id>/dashboard.html` (replace `<extension-id>` with your extension ID)
+
+## Dashboard Pages
+
+### Home Page
+
+- **Value Proposition**: Explains what the extension offers
+- **Feature Cards**: 
+  - Screen share monitoring for sensitive data
+  - Real-time alerts in extension UI
+  - Upload & paste guardrails
+  - View-only link option
+- **How It Works**: 4-step process (Toggle → Scan → Alert → Log)
+
+### Metrics Page
+
+- **Stat Cards:**
+  - Monitors started (last 7 days, all time)
+  - Alerts detected (by severity: critical, warn, info)
+  - Warnings count
+  - Errors count
+  - Average alert latency (if available)
+- **Trend Chart**: Last 7 days alerts count (simple bar chart)
+
+### Activity Page
+
+- **Timeline**: Last 50 events displayed in chronological order
+- **Event Details**: Each event shows:
+  - Timestamp
+  - Type (status, detection, log, error)
+  - Severity badge (critical, warn, info)
+  - Message
+  - Source (proxy, video, extension)
+- **Filters:**
+  - Severity filter (All, Critical, Warning, Info)
+  - Text search
+- **Export**: "Export JSON" button downloads all events as JSON file
+
+## Data Storage
+
+- Events are stored in `chrome.storage.local` under key `dashboard_events`
+- Maximum 500 events (oldest events are removed when limit is reached)
+- Events persist across browser sessions
+- Metrics are computed on-the-fly from stored events
+
+## Dev Mode
+
+To enable dev mode for testing:
+
+1. Open browser console (F12)
+2. Run: `chrome.storage.local.set({ dev_mode: true })`
+3. Refresh dashboard
+4. Dev controls appear at bottom with:
+   - "Generate Sample Events" button (creates 6 sample events)
+   - "Clear All Events" button
+
+## Event Types
+
+Events are automatically stored when:
+- **Paste blocked**: When sensitive paste is detected and blocked
+- **High risk paste**: When paste analysis returns high risk
+- **Secure link created**: When user converts paste to secure view-only link
+- **Video monitoring events**: Status changes, detections, logs, errors from video monitoring
+
+## Integration with Real Events
+
+The dashboard is designed to accept real-time events from:
+- Go proxy SSE stream (video monitoring events)
+- Extension background service worker (paste analysis, uploads)
+- Content scripts (paste blocking)
+
+Events are stored via `background.js` which listens for messages and stores them in `chrome.storage.local`.
 

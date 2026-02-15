@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Guardrail - Dashboard</title>
+    <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="header-content">
+                <h1 class="header-title">Privacy Guardrail</h1>
+                <div class="header-status">
+                    <span class="status-label">Status:</span>
+                    <span id="status-pill" class="status-pill status-stopped">Stopped</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="dashboard-nav">
+            <a href="#home" class="nav-link active" data-route="home">Home</a>
+            <a href="#metrics" class="nav-link" data-route="metrics">Metrics</a>
+            <a href="#activity" class="nav-link" data-route="activity">Activity</a>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="dashboard-main">
+            <!-- Home Page -->
+            <div id="page-home" class="page active">
+                <div class="page-header">
+                    <h2>Protect Your Privacy</h2>
+                    <p class="page-subtitle">Real-time guardrails to prevent sensitive data leaks</p>
+                </div>
+
+                <div class="feature-cards">
+                    <div class="feature-card">
+                        <div class="feature-icon">🎥</div>
+                        <h3>Screen Share Monitoring</h3>
+                        <p>Monitors your screen share in real-time to detect sensitive data like passwords, API keys, and tokens before they're exposed.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h3>Real-Time Alerts</h3>
+                        <p>Get instant notifications in the extension UI when sensitive data is detected, allowing you to take immediate action.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">🔒</div>
+                        <h3>Upload & Paste Guardrails</h3>
+                        <p>Blocks dangerous pastes and scans file uploads to prevent accidental sharing of secrets through web forms.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">🔗</div>
+                        <h3>View-Only Links</h3>
+                        <p>Convert sensitive content to secure one-time view links that expire after first access.</p>
+                    </div>
+                </div>
+
+                <div class="how-it-works">
+                    <h3>How It Works</h3>
+                    <div class="steps">
+                        <div class="step">
+                            <div class="step-number">1</div>
+                            <div class="step-content">
+                                <strong>Toggle Monitoring</strong>
+                                <p>Start video monitoring from the extension popup</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">2</div>
+                            <div class="step-content">
+                                <strong>Scan</strong>
+                                <p>System continuously scans screen content for sensitive patterns</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">3</div>
+                            <div class="step-content">
+                                <strong>Alert</strong>
+                                <p>Instant alerts appear when sensitive data is detected</p>
+                            </div>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">4</div>
+                            <div class="step-content">
+                                <strong>Log</strong>
+                                <p>All events are logged for review in the Activity page</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metrics Page -->
+            <div id="page-metrics" class="page">
+                <div class="page-header">
+                    <h2>Metrics</h2>
+                    <p class="page-subtitle">Overview of monitoring activity and detections</p>
+                </div>
+
+                <div class="metrics-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Monitors Started</div>
+                        <div class="stat-value">
+                            <span id="metric-monitors-7d">0</span>
+                            <span class="stat-suffix">last 7 days</span>
+                        </div>
+                        <div class="stat-secondary">
+                            <span id="metric-monitors-all">0</span> all time
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-label">Alerts Detected</div>
+                        <div class="stat-value">
+                            <span id="metric-alerts-critical">0</span>
+                            <span class="stat-suffix">critical</span>
+                        </div>
+                        <div class="stat-secondary">
+                            <span id="metric-alerts-warn">0</span> warnings, 
+                            <span id="metric-alerts-info">0</span> info
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-label">Warnings</div>
+                        <div class="stat-value">
+                            <span id="metric-warnings">0</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-label">Errors</div>
+                        <div class="stat-value">
+                            <span id="metric-errors">0</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-label">Avg Alert Latency</div>
+                        <div class="stat-value">
+                            <span id="metric-latency">N/A</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="trend-section">
+                    <h3>Alerts Trend (Last 7 Days)</h3>
+                    <div id="trend-chart" class="trend-chart">
+                        <div class="trend-placeholder">No data available</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Page -->
+            <div id="page-activity" class="page">
+                <div class="page-header">
+                    <h2>Activity</h2>
+                    <p class="page-subtitle">Recent events and activity timeline</p>
+                </div>
+
+                <div class="activity-controls">
+                    <div class="filter-group">
+                        <label for="filter-severity">Severity:</label>
+                        <select id="filter-severity" class="filter-select">
+                            <option value="all">All</option>
+                            <option value="critical">Critical</option>
+                            <option value="warn">Warning</option>
+                            <option value="info">Info</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="filter-search">Search:</label>
+                        <input type="text" id="filter-search" class="filter-input" placeholder="Search events...">
+                    </div>
+
+                    <button id="export-btn" class="export-btn">Export JSON</button>
+                </div>
+
+                <div id="activity-list" class="activity-list">
+                    <div class="empty-state">No events yet. Start monitoring to see activity.</div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Dev Mode Controls (only visible in dev mode) -->
+        <div id="dev-controls" class="dev-controls" style="display: none;">
+            <div class="dev-section">
+                <h3>Dev Mode</h3>
+                <button id="dev-generate-events" class="dev-btn">Generate Sample Events</button>
+                <button id="dev-clear-events" class="dev-btn">Clear All Events</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="event-storage.js"></script>
+    <script src="dashboard.js"></script>
+</body>
+</html>
+

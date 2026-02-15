@@ -91,6 +91,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       })
       .then((data) => {
         stats.secure_links_created++;
+        // Store dashboard event
+        appendDashboardEvent({
+          id: generateEventId(),
+          ts: new Date().toISOString(),
+          type: 'status',
+          severity: 'info',
+          source: 'extension',
+          message: 'Secure view-only link created'
+        });
         sendResponse({ viewLink: data.viewLink, fileId: data.fileId });
       })
       .catch((e) => sendResponse({ error: e.message || "Upload failed" }));
@@ -99,6 +108,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   
   if (msg.type === "PASTE_BLOCKED") {
     stats.pastes_blocked++;
+    // Store dashboard event
+    appendDashboardEvent({
+      id: generateEventId(),
+      ts: new Date().toISOString(),
+      type: 'detection',
+      severity: 'warn',
+      source: 'extension',
+      message: 'Paste blocked due to sensitive content detection'
+    });
     sendResponse({ success: true });
     return false;
   }
@@ -191,6 +209,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           console.log(`[ANALYZE_TEXT] cache miss - risk: ${report.overall_risk}, findings: ${findingsCount}`);
           
           stats.pastes_analyzed++;
+          
+          // Store dashboard event if high risk
+          if (report.overall_risk === 'high' && findingsCount > 0) {
+            appendDashboardEvent({
+              id: generateEventId(),
+              ts: new Date().toISOString(),
+              type: 'detection',
+              severity: 'critical',
+              source: 'extension',
+              message: `High risk paste detected: ${findingsCount} finding(s)`,
+              metadata: { findings_count: findingsCount, risk: report.overall_risk }
+            });
+          }
+          
           sendResponse(report);
         } catch (fetchError) {
           clearTimeout(timeoutId);
@@ -211,5 +243,46 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true; // Keep channel open for async response
   }
   
+  if (msg.type === "STORE_DASHBOARD_EVENT") {
+    appendDashboardEvent(msg.event);
+    sendResponse({ success: true });
+    return false;
+  }
+  
   return false;
 });
+
+// Dashboard event storage
+async function appendDashboardEvent(event) {
+  try {
+    const events = await getDashboardEvents();
+    events.unshift(event);
+    if (events.length > 500) {
+      events.splice(500);
+    }
+    await chrome.storage.local.set({ dashboard_events: events });
+    
+    // Notify dashboard if open (try to send message, ignore if no listener)
+    try {
+      chrome.runtime.sendMessage({
+        type: 'DASHBOARD_EVENT',
+        event: event
+      }).catch(() => {
+        // Dashboard not open, ignore
+      });
+    } catch (e) {
+      // Ignore
+    }
+  } catch (error) {
+    console.error('Failed to store dashboard event:', error);
+  }
+}
+
+async function getDashboardEvents() {
+  const result = await chrome.storage.local.get(['dashboard_events']);
+  return result.dashboard_events || [];
+}
+
+function generateEventId() {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}

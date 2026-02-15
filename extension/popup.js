@@ -462,7 +462,28 @@ function checkAndConnectSSE() {
     });
 }
 
-function handleVideoEvent(event) {
+async function handleVideoEvent(event) {
+    // Store event in dashboard
+    const dashboardEvent = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        ts: new Date().toISOString(),
+        type: event.type,
+        severity: mapSeverity(event),
+        source: 'video',
+        message: getEventMessage(event),
+        metadata: event.data
+    };
+    
+    // Store in background (which stores in chrome.storage.local)
+    try {
+        await chrome.runtime.sendMessage({
+            type: 'STORE_DASHBOARD_EVENT',
+            event: dashboardEvent
+        });
+    } catch (error) {
+        console.error('Failed to store dashboard event:', error);
+    }
+    
     switch (event.type) {
         case 'status':
             updateVideoStatus(event.data);
@@ -480,6 +501,24 @@ function handleVideoEvent(event) {
             addLog('error', 'system', event.data.message || 'Error occurred');
             break;
     }
+}
+
+function mapSeverity(event) {
+    if (event.type === 'error') return 'critical';
+    if (event.type === 'detection') {
+        return event.data.severity === 'critical' || event.data.severity === 'high' ? 'critical' : 'warn';
+    }
+    if (event.data && event.data.level === 'error') return 'critical';
+    if (event.data && event.data.level === 'warning') return 'warn';
+    return 'info';
+}
+
+function getEventMessage(event) {
+    if (event.data && event.data.message) return event.data.message;
+    if (event.type === 'detection' && event.data.rule_name) {
+        return `Detection: ${event.data.rule_name} (${event.data.severity || 'unknown'})`;
+    }
+    return `${event.type} event`;
 }
 
 function addAlert(data) {
