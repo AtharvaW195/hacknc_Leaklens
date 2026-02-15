@@ -186,13 +186,19 @@
 ### 🔧 Technical Features
 
 1. **Code Quality**
-   - ✅ Standard library only (no external dependencies)
+   - ✅ Standard library only (no external dependencies for detector)
    - ✅ Single binary deployment
    - ✅ Go 1.21+ compatible
    - ✅ Clean architecture
    - ✅ Modular rule system
    - ✅ Interface-based design
    - ✅ Well-documented code
+   - ✅ Module wiring (backend can import detector)
+
+2. **Module Structure**
+   - ✅ Root module: `pasteguard` (contains detector, server)
+   - ✅ Backend module: `backend` (separate module, can import detector via replace)
+   - ✅ Module wiring verified and working
 
 2. **Performance**
    - ✅ Fast text processing

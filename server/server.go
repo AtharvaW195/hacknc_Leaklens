@@ -1,13 +1,23 @@
 package server
 
 import (
+	"bufio"
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/google/uuid"
 	"pasteguard/detector"
 )
 
@@ -19,6 +29,28 @@ const (
 	// MaxRequestsPerWindow limits requests per IP per window
 	MaxRequestsPerWindow = 100
 )
+
+// FileMetadata stores metadata for uploaded files
+type FileMetadata struct {
+	S3Key        string
+	OriginalName string
+	ContentType  string
+	UploadTime   time.Time
+	Viewed       bool
+}
+
+// UploadRequest represents a request to generate an upload URL
+type UploadRequest struct {
+	FileName string `json:"fileName"`
+	FileType string `json:"fileType"`
+}
+
+// UploadResponse represents the response from upload endpoints
+type UploadResponse struct {
+	UploadURL string `json:"uploadUrl,omitempty"`
+	ViewLink  string `json:"viewLink"`
+	FileID    string `json:"fileId"`
+}
 
 // RateLimiter tracks requests per IP
 type RateLimiter struct {
@@ -64,15 +96,77 @@ func (rl *RateLimiter) Allow(ip string) bool {
 
 // Server wraps the HTTP server and dependencies
 type Server struct {
-	engine     *detector.Engine
+	engine      *detector.Engine
 	rateLimiter *RateLimiter
+	s3Client    *s3.Client
+	presigner   *s3.PresignClient
+	bucketName  string
+	viewBaseURL string
+	viewStore   map[string]*FileMetadata
+	storeMu     sync.RWMutex
 }
 
 // NewServer creates a new server instance
 func NewServer() *Server {
+	// Load environment variables
+	loadEnv()
+
+	bucketName := os.Getenv("AWS_BUCKET_NAME")
+	viewBaseURL := os.Getenv("VIEW_LINK_BASE_URL")
+	if bucketName == "" {
+		log.Println("WARNING: AWS_BUCKET_NAME not set. Put it in .env or set the env var. Uploads will fail.")
+		bucketName = "guardrail-demo-bucket"
+	}
+	if viewBaseURL == "" {
+		viewBaseURL = "http://localhost:8080"
+	}
+	viewBaseURL = strings.TrimSuffix(viewBaseURL, "/")
+
+	// Initialize AWS config (optional - only needed for uploads)
+	var s3Client *s3.Client
+	var presigner *s3.PresignClient
+	cfg, err := config.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		log.Printf("WARNING: Unable to load AWS config: %v. File uploads will not work.", err)
+	} else {
+		s3Client = s3.NewFromConfig(cfg)
+		presigner = s3.NewPresignClient(s3Client)
+	}
+
 	return &Server{
 		engine:      detector.NewEngine(),
 		rateLimiter: NewRateLimiter(),
+		s3Client:    s3Client,
+		presigner:   presigner,
+		bucketName:  bucketName,
+		viewBaseURL: viewBaseURL,
+		viewStore:   make(map[string]*FileMetadata),
+	}
+}
+
+// loadEnv reads .env from the current directory and sets env vars
+func loadEnv() {
+	f, err := os.Open(".env")
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		i := strings.Index(line, "=")
+		if i <= 0 {
+			continue
+		}
+		key := strings.TrimSpace(line[:i])
+		val := strings.TrimSpace(line[i+1:])
+		val = strings.Trim(val, "\"'")
+		if key != "" {
+			os.Setenv(key, val)
+		}
 	}
 }
 
@@ -102,6 +196,21 @@ func getClientIP(r *http.Request) string {
 	return r.RemoteAddr
 }
 
+// setCORS sets CORS headers
+func setCORS(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET")
+	w.Header().Set("Access-Control-Allow-Headers", "*")
+}
+
+// writeJSONError writes a JSON error response
+func writeJSONError(w http.ResponseWriter, message string, code int) {
+	setCORS(w)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
 // rateLimitMiddleware applies rate limiting
 func (s *Server) rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -121,6 +230,12 @@ func (s *Server) rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 // analyzeHandler handles POST /analyze requests
 func (s *Server) analyzeHandler(w http.ResponseWriter, r *http.Request) {
+	setCORS(w)
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	// Only allow POST
 	if r.Method != http.MethodPost {
 		w.Header().Set("Content-Type", "application/json")
@@ -185,10 +300,218 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// uploadHandler handles POST /api/upload requests (proxy upload to S3)
+func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
+	setCORS(w)
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method != "POST" {
+		writeJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if s.s3Client == nil {
+		writeJSONError(w, "S3 client not configured. Check AWS credentials.", http.StatusServiceUnavailable)
+		return
+	}
+
+	maxUpload := int64(50 << 20) // 50 MB
+	r.Body = http.MaxBytesReader(w, r.Body, maxUpload)
+	if err := r.ParseMultipartForm(maxUpload); err != nil {
+		writeJSONError(w, "Bad request: need multipart form with 'file' field", http.StatusBadRequest)
+		return
+	}
+	form := r.MultipartForm
+	files := form.File["file"]
+	if len(files) == 0 {
+		writeJSONError(w, "No file in 'file' field", http.StatusBadRequest)
+		return
+	}
+	fileHeader := files[0]
+	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+	if ext == "" {
+		ext = "."
+	}
+	allowed := map[string]bool{
+		".pdf": true, ".docx": true, ".doc": true, ".xlsx": true, ".xls": true, ".csv": true,
+		".pptx": true, ".txt": true, ".rtf": true, ".pem": true, ".key": true, ".env": true,
+		".json": true, ".xml": true, ".yaml": true, ".yml": true, ".zip": true, ".tar": true, ".gz": true,
+	}
+	if !allowed[ext] {
+		writeJSONError(w, "File type not allowed. Use PDF, Office, CSV, TXT, ZIP, etc.", http.StatusForbidden)
+		return
+	}
+	f, err := fileHeader.Open()
+	if err != nil {
+		writeJSONError(w, "Failed to read file", http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+	fileID := uuid.New().String()
+	key := fmt.Sprintf("uploads/%s/%s", fileID, fileHeader.Filename)
+	contentType := fileHeader.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	_, err = s.s3Client.PutObject(context.TODO(), &s3.PutObjectInput{
+		Bucket:      aws.String(s.bucketName),
+		Key:         aws.String(key),
+		Body:        f,
+		ContentType: aws.String(contentType),
+	})
+	if err != nil {
+		log.Printf("S3 PutObject failed: %v", err)
+		writeJSONError(w, "Upload to storage failed. Check AWS credentials and bucket name in .env", http.StatusInternalServerError)
+		return
+	}
+	s.storeMu.Lock()
+	s.viewStore[fileID] = &FileMetadata{
+		S3Key:        key,
+		OriginalName: fileHeader.Filename,
+		ContentType:  contentType,
+		UploadTime:   time.Now(),
+		Viewed:       false,
+	}
+	s.storeMu.Unlock()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(UploadResponse{
+		ViewLink: fmt.Sprintf("%s/view/%s", s.viewBaseURL, fileID),
+		FileID:   fileID,
+	})
+}
+
+// generateUploadURLHandler handles POST /api/generate-upload-url requests
+func (s *Server) generateUploadURLHandler(w http.ResponseWriter, r *http.Request) {
+	setCORS(w)
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if r.Method != "POST" {
+		writeJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if s.presigner == nil {
+		writeJSONError(w, "S3 client not configured. Check AWS credentials.", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req UploadRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate File Type
+	ext := strings.ToLower(filepath.Ext(req.FileName))
+	allowed := map[string]bool{
+		".pdf": true, ".docx": true, ".doc": true, ".xlsx": true, ".xls": true, ".csv": true,
+		".pptx": true, ".txt": true, ".rtf": true, ".pem": true, ".key": true, ".env": true,
+		".json": true, ".xml": true, ".yaml": true, ".yml": true, ".zip": true, ".tar": true, ".gz": true,
+	}
+	if !allowed[ext] {
+		writeJSONError(w, "File type not allowed", http.StatusForbidden)
+		return
+	}
+
+	fileID := uuid.New().String()
+	key := fmt.Sprintf("uploads/%s/%s", fileID, req.FileName)
+
+	// Generate Presigned PUT URL
+	presignedReq, err := s.presigner.PresignPutObject(context.TODO(), &s3.PutObjectInput{
+		Bucket:      aws.String(s.bucketName),
+		Key:         aws.String(key),
+		ContentType: aws.String(req.FileType),
+	}, s3.WithPresignExpires(15*time.Minute))
+
+	if err != nil {
+		log.Printf("Failed to presign request: %v", err)
+		writeJSONError(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Store metadata
+	s.storeMu.Lock()
+	s.viewStore[fileID] = &FileMetadata{
+		S3Key:        key,
+		OriginalName: req.FileName,
+		ContentType:  req.FileType,
+		UploadTime:   time.Now(),
+		Viewed:       false,
+	}
+	s.storeMu.Unlock()
+
+	resp := UploadResponse{
+		UploadURL: presignedReq.URL,
+		ViewLink:  fmt.Sprintf("%s/view/%s", s.viewBaseURL, fileID),
+		FileID:    fileID,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// viewHandler handles GET /view/<id> requests (one-time view links)
+func (s *Server) viewHandler(w http.ResponseWriter, r *http.Request) {
+	// Extract ID from URL path
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 3 {
+		http.NotFound(w, r)
+		return
+	}
+	fileID := parts[2]
+
+	s.storeMu.Lock()
+	meta, exists := s.viewStore[fileID]
+	if !exists {
+		s.storeMu.Unlock()
+		http.NotFound(w, r)
+		return
+	}
+
+	if meta.Viewed {
+		s.storeMu.Unlock()
+		http.Error(w, "This link has expired or already been viewed.", http.StatusGone)
+		return
+	}
+
+	// Mark as viewed strictly (One-Time Link)
+	meta.Viewed = true
+	s.storeMu.Unlock()
+
+	if s.presigner == nil {
+		http.Error(w, "S3 client not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Generate Presigned GET URL for view-only (inline = display in browser when possible)
+	presignedGet, err := s.presigner.PresignGetObject(context.TODO(), &s3.GetObjectInput{
+		Bucket:                    aws.String(s.bucketName),
+		Key:                       aws.String(meta.S3Key),
+		ResponseContentDisposition: aws.String("inline"), // view-only: open in browser, don't force download
+	}, s3.WithPresignExpires(5*time.Minute))
+
+	if err != nil {
+		log.Printf("Failed to generate view link: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Redirect to the S3 URL
+	http.Redirect(w, r, presignedGet.URL, http.StatusTemporaryRedirect)
+}
+
 // RegisterRoutes sets up HTTP routes
 func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/health", s.healthHandler)
 	mux.HandleFunc("/analyze", s.rateLimitMiddleware(s.analyzeHandler))
+	mux.HandleFunc("/api/upload", s.uploadHandler)
+	mux.HandleFunc("/api/generate-upload-url", s.generateUploadURLHandler)
+	mux.HandleFunc("/view/", s.viewHandler)
 }
 
 // Start starts the HTTP server on the given address
@@ -201,7 +524,7 @@ func (s *Server) Start(addr string) error {
 		Addr:         addr,
 		Handler:      mux,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1MB
 	}
@@ -210,4 +533,3 @@ func (s *Server) Start(addr string) error {
 	log.Printf("Starting pasteguard server on %s", addr)
 	return server.ListenAndServe()
 }
-

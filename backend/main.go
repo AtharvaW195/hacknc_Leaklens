@@ -5,6 +5,7 @@ import (
     "context"
     "encoding/json"
     "fmt"
+    "io"
     "log"
     "net/http"
     "os"
@@ -17,6 +18,7 @@ import (
     "github.com/aws/aws-sdk-go-v2/config"
     "github.com/aws/aws-sdk-go-v2/service/s3"
     "github.com/google/uuid"
+    "pasteguard/detector"
 )
 
 // In-memory store for one-time links (for demo purposes)
@@ -25,10 +27,14 @@ var (
     storeMu     sync.RWMutex
     bucketName  string
     viewBaseURL string
+    // Shared detector engine instance (initialized once, reused for all requests)
+    detectorEngine *detector.Engine
 )
 
 func init() {
     loadEnv()
+    // Initialize shared detector engine once
+    detectorEngine = detector.NewEngine()
 }
 
 // loadEnv reads .env from the current directory and sets env vars. Keeps secrets out of the shell.
@@ -299,6 +305,130 @@ func main() {
 
         // Redirect to the S3 URL
         http.Redirect(w, r, presignedGet.URL, http.StatusTemporaryRedirect)
+    })
+
+    // Paste analysis endpoint
+    http.HandleFunc("/api/analyze-text", func(w http.ResponseWriter, r *http.Request) {
+        setCORS(w)
+        if r.Method == "OPTIONS" {
+            w.WriteHeader(http.StatusOK)
+            return
+        }
+        if r.Method != "POST" {
+            writeJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+            return
+        }
+
+        // Enforce 100KB limit
+        const maxSize = 100 * 1024 // 100KB
+        r.Body = http.MaxBytesReader(w, r.Body, maxSize)
+
+        var req struct {
+            Text string `json:"text"`
+        }
+        decoder := json.NewDecoder(r.Body)
+        if err := decoder.Decode(&req); err != nil {
+            if err == io.EOF {
+                writeJSONError(w, "Request body is required", http.StatusBadRequest)
+            } else if strings.Contains(err.Error(), "request body too large") || strings.Contains(err.Error(), "http: request body too large") {
+                writeJSONError(w, "Payload too large (max 100KB)", http.StatusRequestEntityTooLarge)
+            } else {
+                writeJSONError(w, "Invalid JSON", http.StatusBadRequest)
+            }
+            return
+        }
+
+        // Reject empty text
+        if strings.TrimSpace(req.Text) == "" {
+            writeJSONError(w, "Text cannot be empty", http.StatusBadRequest)
+            return
+        }
+
+        // Analyze text using shared engine
+        result := detectorEngine.Analyze(req.Text)
+
+        // Safety check: ensure no finding preview equals a substring of input longer than 8 chars
+        for i := range result.Findings {
+            finding := &result.Findings[i]
+            if len(finding.Reason) > 8 && strings.Contains(req.Text, finding.Reason) {
+                finding.Reason = "[REDACTED]"
+            }
+        }
+
+        // Normalize risk levels to uppercase for stable API
+        riskLevel := strings.ToUpper(result.OverallRisk)
+
+        // Build response
+        response := map[string]interface{}{
+            "overall_risk":   riskLevel,
+            "risk_rationale": result.RiskRationale,
+            "findings":       result.Findings,
+        }
+
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(response)
+    })
+
+    // Add /analyze endpoint (alias for /api/analyze-text) for extension compatibility
+    http.HandleFunc("/analyze", func(w http.ResponseWriter, r *http.Request) {
+        setCORS(w)
+        if r.Method == "OPTIONS" {
+            w.WriteHeader(http.StatusOK)
+            return
+        }
+        if r.Method != "POST" {
+            writeJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+            return
+        }
+
+        // Enforce 100KB limit
+        const maxSize = 100 * 1024 // 100KB
+        r.Body = http.MaxBytesReader(w, r.Body, maxSize)
+
+        var req struct {
+            Text string `json:"text"`
+        }
+        decoder := json.NewDecoder(r.Body)
+        if err := decoder.Decode(&req); err != nil {
+            if err == io.EOF {
+                writeJSONError(w, "Request body is required", http.StatusBadRequest)
+            } else if strings.Contains(err.Error(), "request body too large") || strings.Contains(err.Error(), "http: request body too large") {
+                writeJSONError(w, "Payload too large (max 100KB)", http.StatusRequestEntityTooLarge)
+            } else {
+                writeJSONError(w, "Invalid JSON", http.StatusBadRequest)
+            }
+            return
+        }
+
+        // Reject empty text
+        if strings.TrimSpace(req.Text) == "" {
+            writeJSONError(w, "Text cannot be empty", http.StatusBadRequest)
+            return
+        }
+
+        // Analyze text using shared engine
+        result := detectorEngine.Analyze(req.Text)
+
+        // Safety check: ensure no finding preview equals a substring of input longer than 8 chars
+        for i := range result.Findings {
+            finding := &result.Findings[i]
+            if len(finding.Reason) > 8 && strings.Contains(req.Text, finding.Reason) {
+                finding.Reason = "[REDACTED]"
+            }
+        }
+
+        // Normalize risk levels to lowercase for consistency with pasteguard server
+        riskLevel := strings.ToLower(result.OverallRisk)
+
+        // Build response
+        response := map[string]interface{}{
+            "overall_risk":   riskLevel,
+            "risk_rationale": result.RiskRationale,
+            "findings":       result.Findings,
+        }
+
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(response)
     })
 
     log.Println("Server starting on :8080...")

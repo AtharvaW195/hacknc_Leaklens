@@ -308,6 +308,25 @@ All responses follow this JSON structure:
 
 ## 🧪 Testing
 
+### Quick Test (All Tests + Report)
+
+**PowerShell (Windows):**
+```powershell
+# Run comprehensive test suite with report
+.\test-all.ps1
+```
+
+**Unix/Linux/Mac:**
+```bash
+# Run all tests with coverage
+go test ./... -cover
+
+# Run backend tests
+cd backend && go test ./... -cover && cd ..
+```
+
+### Manual Testing
+
 ```bash
 # Run all tests
 go test ./...
@@ -319,6 +338,9 @@ go test ./... -cover
 go test -v ./... -run TestCLI
 go test -v ./server
 go test -v ./detector
+
+# Test backend module
+cd backend && go test ./... && cd ..
 ```
 
 **Test Coverage:**
@@ -328,6 +350,7 @@ go test -v ./detector
 - Engine Tests: 10+ tests
 - Redaction Tests: 8 tests
 - Merge/Sort Tests: 11 tests
+- Backend Module: (no tests yet)
 - **Total: 95+ tests**
 
 ## 📚 Documentation

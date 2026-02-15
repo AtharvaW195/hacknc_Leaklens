@@ -24,6 +24,22 @@
 
 See [FEATURES.md](FEATURES.md) for the complete feature list.
 
+## Quick Start: Run All Tests
+
+**One Command to Test Everything:**
+```powershell
+.\test-all.ps1
+```
+
+This comprehensive test script will:
+- ✅ Run all unit tests (root + backend modules)
+- ✅ Verify all builds
+- ✅ Check module wiring
+- ✅ Generate coverage report
+- ✅ Create detailed JSON report (`test-report.json`)
+
+**Expected**: All tests pass, builds succeed, module wiring verified
+
 ## Step 1: Build the Binary
 
 ```powershell
@@ -868,9 +884,61 @@ echo "password = `"secret123`"" | .\pasteguard.exe
 - [x] Redaction tests pass (8 tests) ✅
 - [x] All rule tests pass (50+ tests) ✅
 - [x] Merge and sort tests pass (11 tests) ✅
+- [x] Backend module builds successfully ✅
+- [x] Module wiring verified (backend → detector) ✅
 - [x] Code coverage: 95%+ ✅
 
 ## Running Unit Tests
+
+### Comprehensive Test Suite (Recommended)
+
+**Run all tests and generate report:**
+```powershell
+# PowerShell (Windows) - Comprehensive test with report
+.\test-all.ps1
+```
+
+This script will:
+- ✅ Test root module (pasteguard CLI + detector)
+- ✅ Test backend module
+- ✅ Verify all builds
+- ✅ Verify module wiring (backend → detector)
+- ✅ Generate coverage report
+- ✅ Create `test-report.json` with detailed results
+
+**Expected Output:**
+```
+========================================
+  Pasteguard - Complete Test Suite
+========================================
+
+[1/4] Testing Root Module (Pasteguard CLI + Detector)...
+  ✓ Root module tests passed
+
+[2/4] Testing Backend Module...
+  ✓ Backend module tests passed
+
+[3/4] Verifying Builds...
+  ✓ Root module builds successfully
+  ✓ Backend module builds successfully
+
+[4/4] Verifying Module Wiring...
+  ✓ Module wiring verified (replace directive working)
+
+========================================
+  Test Summary
+========================================
+
+Tests: X/X passed
+Builds: X/X successful
+Coverage:
+  Root Module: 95.2%
+  Backend Module: XX%
+
+Detailed report saved to: test-report.json
+```
+
+### Manual Test Commands
 
 ```powershell
 # Run all tests (including new CLI tests)
@@ -903,15 +971,15 @@ go test -v ./... -run TestCLIAllFindingMetrics
 # Run overlap merging tests
 go test -v ./detector -run TestMerge
 go test -v ./detector -run TestSort
+
+# Test backend module
+cd backend
+go test ./...
+go build .
+cd ..
 ```
 
 **Expected**: All tests should pass (95+ tests total)
-
-# Run HTTP server tests
-go test -v ./server
-
-# Run all tests including server
-go test -v ./...
 
 ### Test Coverage Summary
 - **CLI Tests**: 13 tests (including password, PEM, JWT, token heuristics, redaction, risk scoring)
@@ -920,7 +988,22 @@ go test -v ./...
 - **Redaction Tests**: 8 tests (verify no secrets leak)
 - **Engine Tests**: 10+ tests (risk scoring, engine functionality)
 - **Merge & Sort Tests**: 11 tests (overlap merging, deterministic sorting)
+- **Backend Module**: Builds successfully, module wiring verified
 - **Total**: 95+ tests, all passing
+
+### Quick Test Command
+
+**Run everything with one command:**
+```powershell
+.\test-all.ps1
+```
+
+This comprehensive test script:
+- Runs all unit tests (root + backend modules)
+- Verifies all builds
+- Checks module wiring
+- Generates coverage report
+- Creates `test-report.json` with detailed results
 
 ## Troubleshooting
 

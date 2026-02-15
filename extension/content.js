@@ -335,6 +335,146 @@ function resetModal(dropZone, progressDiv, resultDiv, actionsDiv, progressBar) {
     if (actionsDiv) actionsDiv.style.display = 'none';
 }
 
+// Paste Interception Module
+let pendingPaste = null;
+
+// Helper to insert text at cursor position in input/textarea
+function setRangeText(element, text, start, end) {
+    if (element.setRangeText) {
+        element.setRangeText(text, start, end, 'end');
+    } else {
+        // Fallback for older browsers
+        const value = element.value;
+        const newValue = value.substring(0, start) + text + value.substring(end);
+        element.value = newValue;
+        element.setSelectionRange(start + text.length, start + text.length);
+    }
+    // Trigger input event to notify frameworks
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+// Show temporary tooltip near element
+function showTooltip(element, message) {
+    // Remove existing tooltip if any
+    const existing = document.getElementById('pg-paste-tooltip');
+    if (existing) existing.remove();
+
+    const tooltip = document.createElement('div');
+    tooltip.id = 'pg-paste-tooltip';
+    tooltip.textContent = message;
+    tooltip.style.position = 'absolute';
+    tooltip.style.backgroundColor = '#e74c3c';
+    tooltip.style.color = 'white';
+    tooltip.style.padding = '8px 12px';
+    tooltip.style.borderRadius = '4px';
+    tooltip.style.fontSize = '12px';
+    tooltip.style.fontFamily = 'system-ui, sans-serif';
+    tooltip.style.zIndex = '2147483647';
+    tooltip.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+    tooltip.style.pointerEvents = 'none';
+    tooltip.style.whiteSpace = 'nowrap';
+
+    // Position tooltip near the element
+    const rect = element.getBoundingClientRect();
+    tooltip.style.left = rect.left + 'px';
+    tooltip.style.top = (rect.top - 35) + 'px';
+
+    document.body.appendChild(tooltip);
+
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        if (tooltip.parentNode) {
+            tooltip.remove();
+        }
+    }, 3000);
+}
+
+// Check if element is a valid target for paste interception
+function isValidPasteTarget(element) {
+    if (!element) return false;
+    
+    if (element.tagName === 'TEXTAREA') {
+        return true;
+    }
+    
+    if (element.tagName === 'INPUT') {
+        const validTypes = ['text', 'search', 'email', 'url', 'tel', 'password'];
+        return validTypes.includes(element.type.toLowerCase());
+    }
+    
+    return false;
+}
+
+// Handle paste event
+document.addEventListener('paste', (e) => {
+    const target = e.target;
+    
+    if (!isValidPasteTarget(target)) {
+        return; // Not a target we care about
+    }
+    
+    // Get clipboard text
+    const clipboardData = e.clipboardData || window.clipboardData;
+    if (!clipboardData) return;
+    
+    const pastedText = clipboardData.getData('text');
+    if (!pastedText) return;
+    
+    // Store context
+    const selectionStart = target.selectionStart || 0;
+    const selectionEnd = target.selectionEnd || 0;
+    
+    pendingPaste = {
+        element: target,
+        text: pastedText,
+        selectionStart: selectionStart,
+        selectionEnd: selectionEnd,
+        timestamp: Date.now()
+    };
+    
+    // Prevent default paste for now
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Send to background for analysis
+    chrome.runtime.sendMessage({
+        type: 'ANALYZE_TEXT',
+        text: pastedText
+    }, (response) => {
+        if (chrome.runtime.lastError) {
+            // Background script error - fail open
+            console.error('Privacy Guardrail: Analysis failed', chrome.runtime.lastError);
+            setRangeText(pendingPaste.element, pendingPaste.text, pendingPaste.selectionStart, pendingPaste.selectionEnd);
+            showTooltip(pendingPaste.element, 'Analyzer offline');
+            pendingPaste = null;
+            return;
+        }
+        
+        if (response && response.error) {
+            // Analysis error - fail open
+            console.error('Privacy Guardrail: Analysis error', response.error);
+            setRangeText(pendingPaste.element, pendingPaste.text, pendingPaste.selectionStart, pendingPaste.selectionEnd);
+            showTooltip(pendingPaste.element, 'Analyzer offline');
+            pendingPaste = null;
+            return;
+        }
+        
+        // Handle analysis result
+        const risk = (response && response.overall_risk) ? response.overall_risk.toLowerCase() : 'low';
+        
+        if (risk === 'low') {
+            // Allow paste
+            setRangeText(pendingPaste.element, pendingPaste.text, pendingPaste.selectionStart, pendingPaste.selectionEnd);
+        } else {
+            // Block paste (MEDIUM or HIGH)
+            const riskLevel = risk.toUpperCase();
+            showTooltip(pendingPaste.element, `Sensitive paste blocked (${riskLevel})`);
+        }
+        
+        pendingPaste = null;
+    });
+}, true); // Use capture phase
+
 // Initial Run
 console.log("Privacy Guardrail: Initializing...");
 injectStatusBadge();

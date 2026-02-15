@@ -1,0 +1,32 @@
+﻿{
+    "Coverage":  {
+                     "Backend Module":  "14.4",
+                     "Root Module":  {
+                                         "pasteguard":  "0.0",
+                                         "pasteguard/server":  "87.3"
+                                     },
+                     "Root Module (avg)":  "87.3"
+                 },
+    "Build":  {
+                  "Backend Module":  "PASS",
+                  "Root Module":  "PASS"
+              },
+    "Errors":  [
+                   "Module wiring failed: pasteguard/detector v0.0.0-00010101000000-000000000000: missing ziphash: open hash: The system cannot find the file specified."
+               ],
+    "Tests":  {
+                  "Backend Module":  {
+                                         "Status":  "PASS",
+                                         "Output":  "=== RUN   TestAnalyzeTextEndpoint\r\n=== RUN   TestAnalyzeTextEndpoint/HIGH_risk_on_PEM_private_key\r\n=== RUN   TestAnalyzeTextEndpoint/413_on_payload_too_large\r\n=== RUN   TestAnalyzeTextEndpoint/Redaction_safety_check\r\n=== RUN   TestAnalyzeTextEndpoint/Empty_text_rejected\r\n=== RUN   TestAnalyzeTextEndpoint/Whitespace-only_text_rejected\r\n=== RUN   TestAnalyzeTextEndpoint/OPTIONS_handled\r\n=== RUN   TestAnalyzeTextEndpoint/GET_method_rejected\r\n--- PASS: TestAnalyzeTextEndpoint (0.00s)\r\n    --- PASS: TestAnalyzeTextEndpoint/HIGH_risk_on_PEM_private_key (0.00s)\r\n    --- PASS: TestAnalyzeTextEndpoint/413_on_payload_too_large (0.00s)\r\n    --- PASS: TestAnalyzeTextEndpoint/Redaction_safety_check (0.00s)\r\n    --- PASS: TestAnalyzeTextEndpoint/Empty_text_rejected (0.00s)\r\n    --- PASS: TestAnalyzeTextEndpoint/Whitespace-only_text_rejected (0.00s)\r\n    --- PASS: TestAnalyzeTextEndpoint/OPTIONS_handled (0.00s)\r\n    --- PASS: TestAnalyzeTextEndpoint/GET_method_rejected (0.00s)\r\nPASS\r\ncoverage: 14.4% of statements\r\nok  \tbackend\t(cached)\tcoverage: 14.4% of statements\r\n"
+                                     },
+                  "Root Module":  {
+                                      "Status":  "PASS",
+                                      "Output":  "=== RUN   TestJSONShape\r\n--- PASS: TestJSONShape (0.28s)\r\n=== RUN   TestCLIExitCode\r\n--- PASS: TestCLIExitCode (0.31s)\r\n=== RUN   TestCLIStdin\r\n--- PASS: TestCLIStdin (0.31s)\r\n=== RUN   TestCLIExitCodeStdin\r\n--- PASS: TestCLIExitCodeStdin (0.31s)\r\n=== RUN   TestCLIEmptyString\r\n--- PASS: TestCLIEmptyString (0.30s)\r\n=== RUN   TestCLIPasswordDetection\r\n--- PASS: TestCLIPasswordDetection (0.30s)\r\n=== RUN   TestCLIPasswordDetectionWithoutQuotes\r\n--- PASS: TestCLIPasswordDetectionWithoutQuotes (0.32s)\r\n=== RUN   TestCLIPEMDetection\r\n--- PASS: TestCLIPEMDetection (0.31s)\r\n=== RUN   TestCLIJWTDetection\r\n--- PASS: TestCLIJWTDetection (0.29s)\r\n=== RUN   TestCLITokenHeuristicsDetection\r\n--- PASS: TestCLITokenHeuristicsDetection (0.36s)\r\n=== RUN   TestCLIRedactionNoSecretsLeak\r\n=== RUN   TestCLIRedactionNoSecretsLeak/password\r\n=== RUN   TestCLIRedactionNoSecretsLeak/jwt\r\n=== RUN   TestCLIRedactionNoSecretsLeak/api_key\r\n--- PASS: TestCLIRedactionNoSecretsLeak (0.93s)\r\n    --- PASS: TestCLIRedactionNoSecretsLeak/password (0.30s)\r\n    --- PASS: TestCLIRedactionNoSecretsLeak/jwt (0.31s)\r\n    --- PASS: TestCLIRedactionNoSecretsLeak/api_key (0.32s)\r\n=== RUN   TestCLIRiskScoring\r\n=== RUN   TestCLIRiskScoring/password\r\n=== RUN   TestCLIRiskScoring/jwt\r\n=== RUN   TestCLIRiskScoring/pem\r\n=== RUN   TestCLIRiskScoring/regular_text\r\n=== RUN   TestCLIRiskScoring/uuid\r\n--- PASS: TestCLIRiskScoring (1.51s)\r\n    --- PASS: TestCLIRiskScoring/password (0.31s)\r\n    --- PASS: TestCLIRiskScoring/jwt (0.30s)\r\n    --- PASS: TestCLIRiskScoring/pem (0.31s)\r\n    --- PASS: TestCLIRiskScoring/regular_text (0.30s)\r\n    --- PASS: TestCLIRiskScoring/uuid (0.29s)\r\n=== RUN   TestCLIAllFindingMetrics\r\n--- PASS: TestCLIAllFindingMetrics (0.33s)\r\n=== RUN   TestCLIMultipleRulesDetection\r\n--- PASS: TestCLIMultipleRulesDetection (0.30s)\r\nPASS\r\ncoverage: 0.0% of statements\r\nok  \tpasteguard\t7.651s\tcoverage: 0.0% of statements\r\n=== RUN   TestHealthHandler\r\n--- PASS: TestHealthHandler (0.00s)\r\n=== RUN   TestAnalyzeHandler_POST\r\n--- PASS: TestAnalyzeHandler_POST (0.00s)\r\n=== RUN   TestAnalyzeHandler_GET\r\n--- PASS: TestAnalyzeHandler_GET (0.00s)\r\n=== RUN   TestAnalyzeHandler_InvalidJSON\r\n--- PASS: TestAnalyzeHandler_InvalidJSON (0.00s)\r\n=== RUN   TestAnalyzeHandler_EmptyText\r\n--- PASS: TestAnalyzeHandler_EmptyText (0.00s)\r\n=== RUN   TestAnalyzeHandler_PEMKey\r\n--- PASS: TestAnalyzeHandler_PEMKey (0.00s)\r\n=== RUN   TestAnalyzeHandler_JWT\r\n--- PASS: TestAnalyzeHandler_JWT (0.00s)\r\n=== RUN   TestAnalyzeHandler_RequestSizeLimit\r\n--- PASS: TestAnalyzeHandler_RequestSizeLimit (0.01s)\r\n=== RUN   TestRateLimiter_Allow\r\n--- PASS: TestRateLimiter_Allow (0.00s)\r\n=== RUN   TestRateLimiter_DifferentIPs\r\n--- PASS: TestRateLimiter_DifferentIPs (0.00s)\r\n=== RUN   TestRateLimiter_TimeWindow\r\n--- PASS: TestRateLimiter_TimeWindow (0.00s)\r\n=== RUN   TestAnalyzeHandler_RateLimit\r\n--- PASS: TestAnalyzeHandler_RateLimit (0.03s)\r\n=== RUN   TestAnalyzeHandler_ResponseStructure\r\n--- PASS: TestAnalyzeHandler_ResponseStructure (0.00s)\r\n=== RUN   TestAnalyzeHandler_NoInputLogging\r\n--- PASS: TestAnalyzeHandler_NoInputLogging (0.00s)\r\nPASS\r\ncoverage: 87.3% of statements\r\nok  \tpasteguard/server\t(cached)\tcoverage: 87.3% of statements\r\n"
+                                  },
+                  "Module Wiring":  {
+                                        "Error":  "pasteguard/detector v0.0.0-00010101000000-000000000000: missing ziphash: open hash: The system cannot find the file specified.",
+                                        "Status":  "FAIL"
+                                    }
+              },
+    "Timestamp":  "2026-02-14 17:47:55"
+}

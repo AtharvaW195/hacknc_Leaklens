@@ -31,7 +31,7 @@ func main() {
 func runServer() {
 	// Parse serve command flags
 	serveFlags := flag.NewFlagSet("serve", flag.ExitOnError)
-	addr := serveFlags.String("addr", ":8787", "Address to listen on")
+	addr := serveFlags.String("addr", ":8080", "Address to listen on")
 	serveFlags.Parse(os.Args[2:])
 
 	// Create and start server
