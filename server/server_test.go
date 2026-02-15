@@ -3,8 +3,10 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -23,13 +25,13 @@ func TestHealthHandler(t *testing.T) {
 		t.Errorf("Expected status %d, got %d", http.StatusOK, w.Code)
 	}
 
-	var response map[string]string
+	var response map[string]bool
 	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
 	}
 
-	if response["status"] != "ok" {
-		t.Errorf("Expected status 'ok', got '%s'", response["status"])
+	if !response["ok"] {
+		t.Errorf("Expected ok to be true, got %v", response["ok"])
 	}
 }
 
@@ -429,6 +431,78 @@ func TestAnalyzeHandler_NoInputLogging(t *testing.T) {
 	responseBody := w.Body.String()
 	if strings.Contains(responseBody, sensitiveData) {
 		t.Error("Response should not contain user input")
+	}
+}
+
+func TestUploadAndView_TestMode(t *testing.T) {
+	// Set test mode
+	os.Setenv("BACKEND_TEST_MODE", "1")
+	defer os.Unsetenv("BACKEND_TEST_MODE")
+
+	srv := NewServer()
+	mux := http.NewServeMux()
+	srv.RegisterRoutes(mux)
+
+	// Create a test file upload
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", "test.txt")
+	if err != nil {
+		t.Fatalf("Failed to create form file: %v", err)
+	}
+	testContent := []byte("test file content")
+	part.Write(testContent)
+	writer.Close()
+
+	// Upload file
+	req := httptest.NewRequest(http.MethodPost, "/api/upload", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected status %d, got %d", http.StatusOK, w.Code)
+	}
+
+	var uploadResp UploadResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &uploadResp); err != nil {
+		t.Fatalf("Failed to unmarshal upload response: %v", err)
+	}
+
+	if uploadResp.FileID == "" {
+		t.Error("Expected fileId in upload response")
+	}
+	if uploadResp.ViewLink == "" {
+		t.Error("Expected viewLink in upload response")
+	}
+
+	// First view should succeed
+	viewPath := strings.TrimPrefix(uploadResp.ViewLink, "http://localhost:8080")
+	req2 := httptest.NewRequest(http.MethodGet, viewPath, nil)
+	w2 := httptest.NewRecorder()
+	mux.ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusOK {
+		t.Errorf("Expected first view status %d, got %d", http.StatusOK, w2.Code)
+	}
+	if w2.Header().Get("Content-Type") == "" {
+		t.Error("Expected Content-Type header in first view")
+	}
+	if !bytes.Equal(w2.Body.Bytes(), testContent) {
+		t.Error("First view should return the uploaded file content")
+	}
+
+	// Second view should return 410 with LINK_USED
+	req3 := httptest.NewRequest(http.MethodGet, viewPath, nil)
+	w3 := httptest.NewRecorder()
+	mux.ServeHTTP(w3, req3)
+
+	if w3.Code != http.StatusGone {
+		t.Errorf("Expected second view status %d, got %d", http.StatusGone, w3.Code)
+	}
+	bodyText := w3.Body.String()
+	if !strings.Contains(bodyText, "LINK_USED") {
+		t.Errorf("Expected 'LINK_USED' in second view response, got: %s", bodyText)
 	}
 }
 

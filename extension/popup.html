@@ -244,12 +244,151 @@
             color: #95a5a6;
             text-align: center;
         }
+
+        .settings-section {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+
+        .setting-item {
+            margin-bottom: 15px;
+        }
+
+        .setting-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+            font-size: 13px;
+            color: #333;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.3s;
+            border-radius: 24px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background-color: #27ae60;
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(20px);
+        }
+
+        .setting-select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            background-color: white;
+            cursor: pointer;
+        }
+
+        .setting-select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .setting-desc {
+            font-size: 11px;
+            color: #7f8c8d;
+            margin-top: 4px;
+        }
     </style>
 </head>
 
 <body>
     <h2>Privacy Guardrail</h2>
     <p style="margin: 5px 0; font-size: 13px;">Status: <span class="status-active">● Active</span></p>
+
+    <div class="settings-section" id="pg-stats-section">
+        <div class="section-title">📊 Session Stats</div>
+        <div style="font-size: 12px; color: #666; margin-bottom: 10px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                <span>Pastes analyzed:</span>
+                <span id="pg-stat-analyzed" style="font-weight: 600;">0</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                <span>Pastes blocked:</span>
+                <span id="pg-stat-blocked" style="font-weight: 600; color: #e74c3c;">0</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+                <span>Secure links created:</span>
+                <span id="pg-stat-links" style="font-weight: 600; color: #27ae60;">0</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-section">
+        <div class="section-title">⚙️ Paste Guard Settings</div>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <span>Enable Paste Guard</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="pg-setting-enabled" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="setting-desc">Intercept and analyze pasted text for secrets</div>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-label">
+                <span>Block Threshold</span>
+            </div>
+            <select id="pg-setting-threshold" class="setting-select">
+                <option value="HIGH">HIGH only</option>
+                <option value="HIGH_MEDIUM">HIGH and MEDIUM</option>
+            </select>
+            <div class="setting-desc">Risk levels that trigger paste blocking</div>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-label">
+                <span>Allow Convert to Link</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="pg-setting-convert-link" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="setting-desc">Show "Convert to Secure Share link" button</div>
+        </div>
+    </div>
 
     <div class="link-check-section">
         <div class="section-title">🔗 Check a link</div>
@@ -265,12 +404,12 @@
         </div>
         <p class="section-desc">Upload to S3 and get a one-time <b>view-only link</b> to share (recipient can open in browser once).</p>
 
-        <div id="pg-drop-zone" class="drop-zone">
+        <div id="pg-drop-zone" class="drop-zone" data-testid="popup-dropzone">
             <div style="font-size: 24px; margin-bottom: 5px;">📄</div>
             <div class="drop-text">Click to select file</div>
             <div style="font-size: 10px; color: #bdc3c7; margin-top: 5px;">PDF, Office, CSV, ZIP, etc.</div>
         </div>
-        <input type="file" id="pg-hidden-file-input" style="display: none;">
+        <input type="file" id="pg-hidden-file-input" style="display: none;" data-testid="popup-upload">
 
         <div id="pg-upload-progress" class="upload-progress">
             <span id="pg-progress-text" class="progress-text">Initializing...</span>
@@ -281,7 +420,7 @@
 
         <div id="pg-link-result" class="result-area">
             <div style="font-size: 11px; font-weight: bold; margin-bottom: 5px; color: #27ae60;">Upload done — view-only link</div>
-            <div id="pg-link-text" class="link-display">https://...</div>
+            <div id="pg-link-text" class="link-display" data-testid="popup-link">https://...</div>
             <div class="result-actions">
                 <button id="pg-copy-btn" class="copy-btn">Copy link</button>
                 <button id="pg-open-btn" class="open-btn">Open link</button>

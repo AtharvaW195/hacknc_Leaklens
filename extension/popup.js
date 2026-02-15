@@ -13,6 +13,8 @@ const API_ENDPOINT = "http://localhost:8080/api";
 
 document.addEventListener('DOMContentLoaded', () => {
     loadBlocklist();
+    initSettings();
+    loadStats();
 
     const dropZone = document.getElementById('pg-drop-zone');
     const hiddenInput = document.getElementById('pg-hidden-file-input');
@@ -185,4 +187,66 @@ function checkLink(input, resultEl) {
             resultEl.textContent = '✓ Looks legit — not on our blocklist. Still use normal caution.';
         }
     });
+}
+
+// Settings management
+const DEFAULT_SETTINGS = {
+    pasteGuardEnabled: true,
+    pasteBlockThreshold: 'HIGH',
+    pasteAllowConvertToLink: true
+};
+
+async function initSettings() {
+    const enabledToggle = document.getElementById('pg-setting-enabled');
+    const thresholdSelect = document.getElementById('pg-setting-threshold');
+    const convertLinkToggle = document.getElementById('pg-setting-convert-link');
+
+    if (!enabledToggle || !thresholdSelect || !convertLinkToggle) {
+        return;
+    }
+
+    // Load settings from storage
+    const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
+    
+    enabledToggle.checked = settings.pasteGuardEnabled ?? DEFAULT_SETTINGS.pasteGuardEnabled;
+    thresholdSelect.value = settings.pasteBlockThreshold ?? DEFAULT_SETTINGS.pasteBlockThreshold;
+    convertLinkToggle.checked = settings.pasteAllowConvertToLink ?? DEFAULT_SETTINGS.pasteAllowConvertToLink;
+
+    // Save defaults if not present
+    await chrome.storage.sync.set({
+        pasteGuardEnabled: enabledToggle.checked,
+        pasteBlockThreshold: thresholdSelect.value,
+        pasteAllowConvertToLink: convertLinkToggle.checked
+    });
+
+    // Add event listeners
+    enabledToggle.addEventListener('change', async () => {
+        await chrome.storage.sync.set({ pasteGuardEnabled: enabledToggle.checked });
+    });
+
+    thresholdSelect.addEventListener('change', async () => {
+        await chrome.storage.sync.set({ pasteBlockThreshold: thresholdSelect.value });
+    });
+
+    convertLinkToggle.addEventListener('change', async () => {
+        await chrome.storage.sync.set({ pasteAllowConvertToLink: convertLinkToggle.checked });
+    });
+}
+
+// Load and display stats
+async function loadStats() {
+    try {
+        const stats = await chrome.runtime.sendMessage({ type: 'GET_STATS' });
+        if (stats) {
+            const analyzedEl = document.getElementById('pg-stat-analyzed');
+            const blockedEl = document.getElementById('pg-stat-blocked');
+            const linksEl = document.getElementById('pg-stat-links');
+            
+            if (analyzedEl) analyzedEl.textContent = stats.pastes_analyzed || 0;
+            if (blockedEl) blockedEl.textContent = stats.pastes_blocked || 0;
+            if (linksEl) linksEl.textContent = stats.secure_links_created || 0;
+        }
+    } catch (error) {
+        console.error('Failed to load stats:', error);
+    }
 }

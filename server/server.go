@@ -96,20 +96,26 @@ func (rl *RateLimiter) Allow(ip string) bool {
 
 // Server wraps the HTTP server and dependencies
 type Server struct {
-	engine      *detector.Engine
-	rateLimiter *RateLimiter
-	s3Client    *s3.Client
-	presigner   *s3.PresignClient
-	bucketName  string
-	viewBaseURL string
-	viewStore   map[string]*FileMetadata
-	storeMu     sync.RWMutex
+	engine       *detector.Engine
+	rateLimiter  *RateLimiter
+	s3Client     *s3.Client
+	presigner    *s3.PresignClient
+	bucketName   string
+	viewBaseURL  string
+	viewStore    map[string]*FileMetadata
+	storeMu      sync.RWMutex
+	testMode     bool
+	testFileStore map[string][]byte // In-memory file storage for test mode
+	testFileMu    sync.RWMutex      // Mutex for test file store
 }
 
 // NewServer creates a new server instance
 func NewServer() *Server {
 	// Load environment variables
 	loadEnv()
+
+	// Check for test mode
+	testMode := os.Getenv("BACKEND_TEST_MODE") == "1"
 
 	bucketName := os.Getenv("AWS_BUCKET_NAME")
 	viewBaseURL := os.Getenv("VIEW_LINK_BASE_URL")
@@ -122,25 +128,31 @@ func NewServer() *Server {
 	}
 	viewBaseURL = strings.TrimSuffix(viewBaseURL, "/")
 
-	// Initialize AWS config (optional - only needed for uploads)
+	// Initialize AWS config (optional - only needed for uploads, skip in test mode)
 	var s3Client *s3.Client
 	var presigner *s3.PresignClient
-	cfg, err := config.LoadDefaultConfig(context.TODO())
-	if err != nil {
-		log.Printf("WARNING: Unable to load AWS config: %v. File uploads will not work.", err)
+	if !testMode {
+		cfg, err := config.LoadDefaultConfig(context.TODO())
+		if err != nil {
+			log.Printf("WARNING: Unable to load AWS config: %v. File uploads will not work.", err)
+		} else {
+			s3Client = s3.NewFromConfig(cfg)
+			presigner = s3.NewPresignClient(s3Client)
+		}
 	} else {
-		s3Client = s3.NewFromConfig(cfg)
-		presigner = s3.NewPresignClient(s3Client)
+		log.Println("BACKEND_TEST_MODE enabled: using in-memory storage, no AWS calls")
 	}
 
 	return &Server{
-		engine:      detector.NewEngine(),
-		rateLimiter: NewRateLimiter(),
-		s3Client:    s3Client,
-		presigner:   presigner,
-		bucketName:  bucketName,
-		viewBaseURL: viewBaseURL,
-		viewStore:   make(map[string]*FileMetadata),
+		engine:        detector.NewEngine(),
+		rateLimiter:   NewRateLimiter(),
+		s3Client:      s3Client,
+		presigner:     presigner,
+		bucketName:    bucketName,
+		viewBaseURL:   viewBaseURL,
+		viewStore:     make(map[string]*FileMetadata),
+		testMode:      testMode,
+		testFileStore: make(map[string][]byte),
 	}
 }
 
@@ -295,8 +307,8 @@ func (s *Server) analyzeHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"status": "ok",
+	json.NewEncoder(w).Encode(map[string]bool{
+		"ok": true,
 	})
 }
 
@@ -309,11 +321,6 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method != "POST" {
 		writeJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	if s.s3Client == nil {
-		writeJSONError(w, "S3 client not configured. Check AWS credentials.", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -350,31 +357,59 @@ func (s *Server) uploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 	fileID := uuid.New().String()
-	key := fmt.Sprintf("uploads/%s/%s", fileID, fileHeader.Filename)
 	contentType := fileHeader.Header.Get("Content-Type")
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
-	_, err = s.s3Client.PutObject(context.TODO(), &s3.PutObjectInput{
-		Bucket:      aws.String(s.bucketName),
-		Key:         aws.String(key),
-		Body:        f,
-		ContentType: aws.String(contentType),
-	})
-	if err != nil {
-		log.Printf("S3 PutObject failed: %v", err)
-		writeJSONError(w, "Upload to storage failed. Check AWS credentials and bucket name in .env", http.StatusInternalServerError)
-		return
+
+	if s.testMode {
+		// Test mode: store file bytes in memory
+		fileBytes, err := io.ReadAll(f)
+		if err != nil {
+			writeJSONError(w, "Failed to read file", http.StatusInternalServerError)
+			return
+		}
+		s.testFileMu.Lock()
+		s.testFileStore[fileID] = fileBytes
+		s.testFileMu.Unlock()
+		s.storeMu.Lock()
+		s.viewStore[fileID] = &FileMetadata{
+			S3Key:        "", // Not used in test mode
+			OriginalName: fileHeader.Filename,
+			ContentType:  contentType,
+			UploadTime:   time.Now(),
+			Viewed:       false,
+		}
+		s.storeMu.Unlock()
+	} else {
+		// Production mode: upload to S3
+		if s.s3Client == nil {
+			writeJSONError(w, "S3 client not configured. Check AWS credentials.", http.StatusServiceUnavailable)
+			return
+		}
+		key := fmt.Sprintf("uploads/%s/%s", fileID, fileHeader.Filename)
+		_, err = s.s3Client.PutObject(context.TODO(), &s3.PutObjectInput{
+			Bucket:      aws.String(s.bucketName),
+			Key:         aws.String(key),
+			Body:        f,
+			ContentType: aws.String(contentType),
+		})
+		if err != nil {
+			log.Printf("S3 PutObject failed: %v", err)
+			writeJSONError(w, "Upload to storage failed. Check AWS credentials and bucket name in .env", http.StatusInternalServerError)
+			return
+		}
+		s.storeMu.Lock()
+		s.viewStore[fileID] = &FileMetadata{
+			S3Key:        key,
+			OriginalName: fileHeader.Filename,
+			ContentType:  contentType,
+			UploadTime:   time.Now(),
+			Viewed:       false,
+		}
+		s.storeMu.Unlock()
 	}
-	s.storeMu.Lock()
-	s.viewStore[fileID] = &FileMetadata{
-		S3Key:        key,
-		OriginalName: fileHeader.Filename,
-		ContentType:  contentType,
-		UploadTime:   time.Now(),
-		Viewed:       false,
-	}
-	s.storeMu.Unlock()
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(UploadResponse{
 		ViewLink: fmt.Sprintf("%s/view/%s", s.viewBaseURL, fileID),
@@ -475,7 +510,14 @@ func (s *Server) viewHandler(w http.ResponseWriter, r *http.Request) {
 
 	if meta.Viewed {
 		s.storeMu.Unlock()
-		http.Error(w, "This link has expired or already been viewed.", http.StatusGone)
+		// Return stable error message for test mode
+		if s.testMode {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusGone)
+			w.Write([]byte("LINK_USED"))
+		} else {
+			http.Error(w, "This link has expired or already been viewed.", http.StatusGone)
+		}
 		return
 	}
 
@@ -483,6 +525,22 @@ func (s *Server) viewHandler(w http.ResponseWriter, r *http.Request) {
 	meta.Viewed = true
 	s.storeMu.Unlock()
 
+	if s.testMode {
+		// Test mode: serve from in-memory store
+		s.testFileMu.RLock()
+		fileBytes, exists := s.testFileStore[fileID]
+		s.testFileMu.RUnlock()
+		if !exists {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", meta.ContentType)
+		w.WriteHeader(http.StatusOK)
+		w.Write(fileBytes)
+		return
+	}
+
+	// Production mode: generate presigned S3 URL
 	if s.presigner == nil {
 		http.Error(w, "S3 client not configured", http.StatusServiceUnavailable)
 		return
@@ -509,6 +567,7 @@ func (s *Server) viewHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/health", s.healthHandler)
 	mux.HandleFunc("/analyze", s.rateLimitMiddleware(s.analyzeHandler))
+	mux.HandleFunc("/api/analyze-text", s.rateLimitMiddleware(s.analyzeHandler)) // Alias for extension compatibility
 	mux.HandleFunc("/api/upload", s.uploadHandler)
 	mux.HandleFunc("/api/generate-upload-url", s.generateUploadURLHandler)
 	mux.HandleFunc("/view/", s.viewHandler)
