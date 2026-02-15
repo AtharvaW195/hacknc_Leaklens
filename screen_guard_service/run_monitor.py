@@ -16,6 +16,19 @@ from monitor_runtime.cli import build_parser
 from monitor_runtime.deps import check_dependencies
 from monitor_runtime.recording import RunRecorder
 
+# Try to import HTTP bridge (may not be available in all environments)
+try:
+    from http_bridge import get_bridge, create_bridge_alert_callback
+    HTTP_BRIDGE_AVAILABLE = True
+    print("[RUN_MONITOR] HTTP bridge imported successfully")
+except ImportError as e:
+    HTTP_BRIDGE_AVAILABLE = False
+    print(f"[RUN_MONITOR] WARNING: Failed to import http_bridge: {e}")
+    print(f"[RUN_MONITOR] Detections will not be sent to Go proxy")
+except Exception as e:
+    HTTP_BRIDGE_AVAILABLE = False
+    print(f"[RUN_MONITOR] ERROR: Unexpected error importing http_bridge: {e}")
+
 
 def _build_report_path(args, recorder: RunRecorder) -> str:
     if args.report_file:
@@ -33,6 +46,18 @@ def run_manual(args, recorder: RunRecorder):
         desktop_notifications=args.desktop_notifications,
         recorder_append_fn=recorder.append_detection_batch,
     )
+    
+    # Wrap with HTTP bridge if available
+    if HTTP_BRIDGE_AVAILABLE:
+        print("[RUN_MONITOR] HTTP bridge is available, initializing...")
+        bridge = get_bridge()
+        print(f"[RUN_MONITOR] Bridge URL: {bridge.bridge_url}")
+        bridge.send_status("starting", "Video monitoring starting...")
+        alert_callback = create_bridge_alert_callback(alert_callback)
+        print("[RUN_MONITOR] Bridge alert callback created and set")
+    else:
+        print("[RUN_MONITOR] WARNING: HTTP bridge not available (http_bridge.py import failed)")
+    
     monitor = RealTimeScreenShareMonitor(
         scan_interval=args.scan_interval,
         use_ml=not args.no_ml,
@@ -53,13 +78,24 @@ def run_manual(args, recorder: RunRecorder):
     report_path = _build_report_path(args, recorder)
     print("Starting manual monitoring. Press Ctrl+C to stop.")
     print(f"Run artifacts: {recorder.context.run_dir}")
+    
+    if HTTP_BRIDGE_AVAILABLE:
+        bridge = get_bridge()
+        bridge.send_status("running", "Video monitoring started")
+    
     monitor.start_monitoring(monitor_number=args.monitor_number)
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
         print("\nStopping monitor...")
+        if HTTP_BRIDGE_AVAILABLE:
+            bridge = get_bridge()
+            bridge.send_status("stopping", "Video monitoring stopping...")
         monitor.stop_monitoring()
+        if HTTP_BRIDGE_AVAILABLE:
+            bridge = get_bridge()
+            bridge.send_status("stopped", "Video monitoring stopped")
         monitor.export_session_report(report_path)
         recorder.finalize(report_path)
 

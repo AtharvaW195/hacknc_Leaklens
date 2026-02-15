@@ -442,3 +442,147 @@ graph TD
     Q --> S[Mark Viewed]
 ```
 
+# Video Monitoring Demo Flow
+
+## Pre-demo Setup
+
+1. **Server running**: `go run . serve` on port 8080
+2. **Extension loaded**: Browser extension active
+3. **Python dependencies**: `pip install -r screen_guard_service/requirements.txt` (if not already installed)
+
+## Video Monitoring Demo (60 seconds)
+
+### Step 1: Open Extension Popup (0:00 to 0:05)
+**What I do:**
+- Click extension icon to open popup
+
+**What the audience sees:**
+- Extension popup opens
+- "Video Monitoring" section visible
+- Status shows "Stopped"
+- "Start" button visible
+
+### Step 2: Start Video Monitoring (0:05 to 0:12)
+**What I do:**
+- Click "Start" button in Video Monitoring section
+
+**What the audience sees:**
+- Button changes to "Starting..."
+- Status updates to "Starting" (yellow)
+- Within 1 second, status changes to "Running" (green)
+- "Stop" button appears
+- Alerts and Logs panels become visible
+- Logs show: "Video monitoring starting..." and "Video monitoring started successfully"
+
+**Why it matters**: Shows one-click start and immediate status feedback.
+
+### Step 3: Show Live Logs (0:12 to 0:20)
+**What I do:**
+- Point to "Live Logs" panel
+- Explain that logs are updating in real-time
+
+**What the audience sees:**
+- Logs panel shows recent activity:
+  - `[timestamp] [monitor] Video monitoring started successfully`
+  - `[timestamp] [scanner] Scan completed`
+  - `[timestamp] [ocr] OCR confidence: 0.95`
+
+**Why it matters**: Demonstrates real-time visibility into monitoring activity.
+
+### Step 4: Trigger Detection (0:20 to 0:40) - PRIMARY MOMENT
+**What I do:**
+- Open a text editor or document
+- Type or paste: `password = "mySecretPassword123"`
+- Make sure it's visible on screen
+
+**What the audience sees:**
+- Within 2-3 seconds (scan interval), an alert appears in "Recent Alerts" panel:
+  - Red alert box with:
+    - Rule: `password_assignment`
+    - Severity: `HIGH`
+    - Confidence: `85%`
+    - Redacted text: `mySe...d123`
+- Logs show: `[timestamp] [detector] Detection: password_assignment (high)`
+- Alert appears immediately (within 500ms of video server detection)
+
+**Why it matters**: This is the core value - real-time detection alerts while screen sharing.
+
+### Step 5: Show Multiple Detections (0:40 to 0:50)
+**What I do:**
+- Show another sensitive item (e.g., API key, credit card number)
+- Point out that alerts stack in the panel
+
+**What the audience sees:**
+- Multiple alerts appear in chronological order
+- Each alert shows rule, severity, confidence, and redacted text
+- Logs continue updating with scan activity
+
+**Why it matters**: Shows the system handles multiple detections and maintains history.
+
+### Step 6: Stop Monitoring (0:50 to 0:60)
+**What I do:**
+- Click "Stop" button
+
+**What the audience sees:**
+- Status changes to "Stopping" then "Stopped"
+- "Start" button reappears
+- Logs show: "Video monitoring stopping..." and "Video monitoring stopped"
+- Alerts and logs panels remain visible (showing history)
+
+**Why it matters**: Clean shutdown with status updates.
+
+## Video Monitoring Architecture
+
+```
+Extension UI
+    ↓ (click Start)
+POST /api/video-monitor/start
+    ↓
+Go Proxy (server.go)
+    ↓ (spawns subprocess)
+Python Video Server (run_monitor.py)
+    ↓ (scans screen every 2s)
+Detections Found
+    ↓ (HTTP POST)
+POST /api/video-monitor/events
+    ↓
+Go Proxy (receives event)
+    ↓ (broadcasts via SSE)
+GET /api/video-monitor/stream (SSE)
+    ↓
+Extension (EventSource)
+    ↓ (updates UI)
+Alert appears in extension popup
+```
+
+## New Endpoints
+
+- `POST /api/video-monitor/start` - Start video monitoring
+- `POST /api/video-monitor/stop` - Stop video monitoring  
+- `GET /api/video-monitor/status` - Get current status
+- `GET /api/video-monitor/stream` - SSE event stream (for extension)
+- `POST /api/video-monitor/events` - Internal endpoint (for video server to send events)
+
+## Environment Variables
+
+- `VIDEO_MONITOR_PYTHON_PATH` - Path to Python (default: `python3`)
+- `VIDEO_MONITOR_SCRIPT_PATH` - Path to run_monitor.py (default: `./screen_guard_service/run_monitor.py`)
+- `VIDEO_MONITOR_BRIDGE_URL` - URL for video server to send events (set automatically by Go proxy)
+
+## Troubleshooting
+
+**Status stuck on "Starting":**
+- Check if Python is installed: `python3 --version`
+- Check if screen_guard_service dependencies are installed
+- Check Go proxy logs for errors
+
+**No alerts appearing:**
+- Verify video server is running (check Go proxy logs)
+- Check that sensitive content is actually visible on screen
+- Verify SSE connection is active (check browser console)
+
+**SSE connection errors:**
+- Verify Go proxy is running on port 8080
+- Check browser console for CORS errors
+- Ensure extension has permission to access localhost:8080
+

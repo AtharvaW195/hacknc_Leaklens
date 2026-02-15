@@ -96,17 +96,18 @@ func (rl *RateLimiter) Allow(ip string) bool {
 
 // Server wraps the HTTP server and dependencies
 type Server struct {
-	engine       *detector.Engine
-	rateLimiter  *RateLimiter
-	s3Client     *s3.Client
-	presigner    *s3.PresignClient
-	bucketName   string
-	viewBaseURL  string
-	viewStore    map[string]*FileMetadata
-	storeMu      sync.RWMutex
-	testMode     bool
-	testFileStore map[string][]byte // In-memory file storage for test mode
-	testFileMu    sync.RWMutex      // Mutex for test file store
+	engine         *detector.Engine
+	rateLimiter    *RateLimiter
+	s3Client       *s3.Client
+	presigner      *s3.PresignClient
+	bucketName     string
+	viewBaseURL    string
+	viewStore      map[string]*FileMetadata
+	storeMu        sync.RWMutex
+	testMode       bool
+	testFileStore  map[string][]byte // In-memory file storage for test mode
+	testFileMu     sync.RWMutex       // Mutex for test file store
+	videoMonitor   *VideoMonitorManager
 }
 
 // NewServer creates a new server instance
@@ -153,6 +154,7 @@ func NewServer() *Server {
 		viewStore:     make(map[string]*FileMetadata),
 		testMode:      testMode,
 		testFileStore: make(map[string][]byte),
+		videoMonitor:  NewVideoMonitorManager(),
 	}
 }
 
@@ -563,6 +565,155 @@ func (s *Server) viewHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, presignedGet.URL, http.StatusTemporaryRedirect)
 }
 
+// videoMonitorStartHandler handles POST /api/video-monitor/start
+func (s *Server) videoMonitorStartHandler(w http.ResponseWriter, r *http.Request) {
+	setCORS(w)
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method != "POST" {
+		log.Printf("[VIDEO_MONITOR] Invalid method: %s (expected POST)", r.Method)
+		writeJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	
+	log.Printf("[VIDEO_MONITOR] Start request received from %s", r.RemoteAddr)
+	
+	if err := s.videoMonitor.Start(); err != nil {
+		log.Printf("[VIDEO_MONITOR] Failed to start: %v", err)
+		writeJSONError(w, fmt.Sprintf("Failed to start video monitoring: %v", err), http.StatusInternalServerError)
+		return
+	}
+	
+	status := s.videoMonitor.GetStatus()
+	log.Printf("[VIDEO_MONITOR] Started successfully, status: %s", status.Status)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(status)
+}
+
+// videoMonitorStopHandler handles POST /api/video-monitor/stop
+func (s *Server) videoMonitorStopHandler(w http.ResponseWriter, r *http.Request) {
+	setCORS(w)
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method != "POST" {
+		log.Printf("[VIDEO_MONITOR] Invalid method: %s (expected POST)", r.Method)
+		writeJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	
+	log.Printf("[VIDEO_MONITOR] Stop request received from %s", r.RemoteAddr)
+	
+	if err := s.videoMonitor.Stop(); err != nil {
+		log.Printf("[VIDEO_MONITOR] Failed to stop: %v", err)
+		writeJSONError(w, fmt.Sprintf("Failed to stop video monitoring: %v", err), http.StatusInternalServerError)
+		return
+	}
+	
+	status := s.videoMonitor.GetStatus()
+	log.Printf("[VIDEO_MONITOR] Stopped successfully, status: %s", status.Status)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(status)
+}
+
+// videoMonitorStatusHandler handles GET /api/video-monitor/status
+func (s *Server) videoMonitorStatusHandler(w http.ResponseWriter, r *http.Request) {
+	setCORS(w)
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	
+	status := s.videoMonitor.GetStatus()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(status)
+}
+
+// videoMonitorStreamHandler handles GET /api/video-monitor/stream (SSE)
+func (s *Server) videoMonitorStreamHandler(w http.ResponseWriter, r *http.Request) {
+	setCORS(w)
+	
+	// Set headers for SSE
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
+	
+	// Create client channel
+	clientCh := make(chan VideoMonitorEvent, 10)
+	s.videoMonitor.AddClient(clientCh)
+	defer s.videoMonitor.RemoveClient(clientCh)
+	
+	// Send initial status
+	status := s.videoMonitor.GetStatus()
+	initialEvent := VideoMonitorEvent{
+		Type:      "status",
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Data: map[string]interface{}{
+			"status":  status.Status,
+			"message": status.Message,
+		},
+	}
+	
+	eventData, _ := json.Marshal(initialEvent)
+	fmt.Fprintf(w, "data: %s\n\n", eventData)
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
+	
+	// Stream events
+	ctx := r.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event := <-clientCh:
+			eventData, err := json.Marshal(event)
+			if err != nil {
+				log.Printf("Error marshaling event: %v", err)
+				continue
+			}
+			fmt.Fprintf(w, "data: %s\n\n", eventData)
+			if flusher, ok := w.(http.Flusher); ok {
+				flusher.Flush()
+			}
+		}
+	}
+}
+
+// videoMonitorEventsHandler handles POST /api/video-monitor/events (internal endpoint for video server)
+func (s *Server) videoMonitorEventsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		writeJSONError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	
+	var event VideoMonitorEvent
+	if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
+		log.Printf("[VIDEO_MONITOR] Failed to decode event: %v", err)
+		writeJSONError(w, fmt.Sprintf("Invalid event format: %v", err), http.StatusBadRequest)
+		return
+	}
+	
+	// Ensure timestamp is set
+	if event.Timestamp == "" {
+		event.Timestamp = time.Now().UTC().Format(time.RFC3339)
+	}
+	
+	log.Printf("[VIDEO_MONITOR] Received event: type=%s from %s", event.Type, r.RemoteAddr)
+	if event.Type == "detection" {
+		if ruleName, ok := event.Data["rule_name"].(string); ok {
+			log.Printf("[VIDEO_MONITOR] Detection: %s (severity: %v)", ruleName, event.Data["severity"])
+		}
+	}
+	
+	s.videoMonitor.ReceiveEvent(event)
+	w.WriteHeader(http.StatusOK)
+}
+
 // RegisterRoutes sets up HTTP routes
 func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/health", s.healthHandler)
@@ -571,6 +722,13 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/upload", s.uploadHandler)
 	mux.HandleFunc("/api/generate-upload-url", s.generateUploadURLHandler)
 	mux.HandleFunc("/view/", s.viewHandler)
+	
+	// Video monitoring routes
+	mux.HandleFunc("/api/video-monitor/start", s.videoMonitorStartHandler)
+	mux.HandleFunc("/api/video-monitor/stop", s.videoMonitorStopHandler)
+	mux.HandleFunc("/api/video-monitor/status", s.videoMonitorStatusHandler)
+	mux.HandleFunc("/api/video-monitor/stream", s.videoMonitorStreamHandler)
+	mux.HandleFunc("/api/video-monitor/events", s.videoMonitorEventsHandler) // Internal endpoint for video server
 }
 
 // Start starts the HTTP server on the given address

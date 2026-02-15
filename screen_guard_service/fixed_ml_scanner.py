@@ -17,6 +17,7 @@ from typing import List, Dict, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 from monitor_runtime.pii_catalog import get_pii_regex_patterns
+from safe_print import safe_print
 
 try:
     import easyocr
@@ -64,10 +65,10 @@ class FixedMLScanner:
         self.use_ner_models = use_ner
         self.adaptive_context = adaptive_context
         
-        print(f"🔧 Initializing Fixed ML Scanner...")
-        print(f"   GPU: {'Enabled' if use_gpu else 'Disabled'}")
-        print(f"   NER: {'Enabled' if use_ner else 'Disabled (regex-only mode)'}")
-        print(f"   Context Detection: {'Enabled' if adaptive_context else 'Disabled'}")
+        safe_print(f"[INIT] Initializing Fixed ML Scanner...")
+        safe_print(f"   GPU: {'Enabled' if use_gpu else 'Disabled'}")
+        safe_print(f"   NER: {'Enabled' if use_ner else 'Disabled (regex-only mode)'}")
+        safe_print(f"   Context Detection: {'Enabled' if adaptive_context else 'Disabled'}")
         
         # Initialize OCR
         self._init_ocr()
@@ -82,24 +83,24 @@ class FixedMLScanner:
         # Initialize regex patterns (PRIMARY detection method)
         self._init_regex_patterns()
         
-        print("✅ Scanner initialized!")
+        safe_print("[OK] Scanner initialized!")
     
     def _init_ocr(self):
         """Initialize OCR"""
         if EASYOCR_AVAILABLE:
-            print("   Loading EasyOCR...")
+            safe_print("   Loading EasyOCR...")
             self.ocr_reader = easyocr.Reader(
                 ['en'],
                 gpu=self.use_gpu,
                 verbose=False
             )
             self.ocr_method = 'easyocr'
-            print("   ✓ EasyOCR loaded")
+            safe_print("   [OK] EasyOCR loaded")
         else:
             import pytesseract
             self.ocr_reader = None
             self.ocr_method = 'tesseract'
-            print("   ✓ Using Tesseract")
+            safe_print("   [OK] Using Tesseract")
     
     def _init_ner(self):
         """Initialize NER (optional, can cause false positives)"""
@@ -109,7 +110,7 @@ class FixedMLScanner:
             return
         
         try:
-            print("   Loading PII detector...")
+            safe_print("   Loading PII detector...")
             # Only use PII-specific model, skip generic NER
             self.pii_detector = pipeline(
                 "token-classification",
@@ -118,9 +119,9 @@ class FixedMLScanner:
                 aggregation_strategy="simple"
             )
             self.ner_model = None  # Don't use generic NER
-            print("   ✓ PII detector loaded")
+            safe_print("   [OK] PII detector loaded")
         except Exception as e:
-            print(f"   ⚠️  Could not load NER: {e}")
+            safe_print(f"   [WARN]  Could not load NER: {e}")
             self.ner_model = None
             self.pii_detector = None
     
@@ -281,7 +282,7 @@ class FixedMLScanner:
                 detections.append(detection)
                 
         except Exception as e:
-            print(f"NER error: {e}")
+            safe_print(f"NER error: {e}")
         
         return detections
     
@@ -762,29 +763,29 @@ class FixedMLScanner:
 
 def display_results(results: Dict):
     """Display scan results"""
-    print("\n" + "="*80)
-    print("🔍 SCAN RESULTS")
-    print("="*80)
+    safe_print("\n" + "="*80)
+    safe_print("[SCAN] SCAN RESULTS")
+    safe_print("="*80)
     
-    print(f"\n📊 Metadata:")
-    print(f"   Processing Time: {results['processing_time']:.3f}s")
+    safe_print(f"\n[STATS] Metadata:")
+    safe_print(f"   Processing Time: {results['processing_time']:.3f}s")
     if 'ocr_confidence' in results:
-        print(f"   OCR Confidence: {results['ocr_confidence']:.2%}")
+        safe_print(f"   OCR Confidence: {results['ocr_confidence']:.2%}")
     
     detections = results['detections']
     
     if not detections:
-        print("\n✅ No sensitive content detected!")
+        safe_print("\n[OK] No sensitive content detected!")
         return
     
-    print(f"\n⚠️  FOUND {len(detections)} SENSITIVE ITEM(S)")
-    print("="*80)
+    safe_print(f"\n[WARN]  FOUND {len(detections)} SENSITIVE ITEM(S)")
+    safe_print("="*80)
     
     severity_icons = {
-        'low': 'ℹ️',
-        'medium': '⚠️',
-        'high': '🔴',
-        'critical': '🚨'
+        'low': '[INFO]',
+        'medium': '[WARN]',
+        'high': '[CRITICAL]',
+        'critical': '[ALERT]'
     }
     
     # Sort by severity
@@ -793,23 +794,23 @@ def display_results(results: Dict):
                                key=lambda d: severity_order.get(d.severity, 4))
     
     for i, detection in enumerate(sorted_detections, 1):
-        icon = severity_icons.get(detection.severity, '⚠️')
-        print(f"\n{icon} Detection #{i}")
-        print(f"   Type: {detection.rule_name}")
-        print(f"   Severity: {detection.severity.upper()}")
-        print(f"   Method: {detection.detection_method}")
-        print(f"   Confidence: {detection.confidence:.2%}")
-        print(f"   Matched: {detection.matched_text[:60]}...")
+        icon = severity_icons.get(detection.severity, '[WARN]')
+        safe_print(f"\n{icon} Detection #{i}")
+        safe_print(f"   Type: {detection.rule_name}")
+        safe_print(f"   Severity: {detection.severity.upper()}")
+        safe_print(f"   Method: {detection.detection_method}")
+        safe_print(f"   Confidence: {detection.confidence:.2%}")
+        safe_print(f"   Matched: {detection.matched_text[:60]}...")
         if detection.context:
-            print(f"   Context: ...{detection.context[:50]}...")
+            safe_print(f"   Context: ...{detection.context[:50]}...")
     
-    print("\n" + "="*80)
+    safe_print("\n" + "="*80)
 
 
 def demo():
     """Demo the fixed scanner"""
-    print("\n🔧 FIXED ML SCANNER DEMO")
-    print("="*80)
+    safe_print("\n[INIT] FIXED ML SCANNER DEMO")
+    safe_print("="*80)
     
     # Initialize scanner (NER disabled by default for better accuracy)
     scanner = FixedMLScanner(
@@ -836,10 +837,10 @@ DATABASE_URL=postgresql://user:pass@localhost/db
     ]
     
     for test in test_texts:
-        print(f"\n\n{'='*80}")
-        print(f"TEST: {test['name']}")
-        print('='*80)
-        print(f"Input text:\n{test['text'][:150]}...")
+        safe_print(f"\n\n{'='*80}")
+        safe_print(f"TEST: {test['name']}")
+        safe_print('='*80)
+        safe_print(f"Input text:\n{test['text'][:150]}...")
         
         results = scanner.scan_text(test['text'])
         display_results(results)

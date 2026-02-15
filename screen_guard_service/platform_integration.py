@@ -11,6 +11,7 @@ except ImportError:
 import time
 from typing import Optional, List, Dict, Any
 from realtime_monitor import RealTimeScreenShareMonitor
+from safe_print import safe_print
 
 
 class ScreenShareDetector:
@@ -254,10 +255,10 @@ class AutoScreenShareMonitor:
     
     def run(self):
         """Main loop - automatically start/stop monitoring"""
-        print("\n" + "="*80)
-        print("🤖 AUTO SCREEN SHARE MONITOR")
-        print("="*80)
-        print("\nAutomatically monitors when you start screen sharing")
+        safe_print("\n" + "="*80)
+        safe_print("[BOT] AUTO SCREEN SHARE MONITOR")
+        safe_print("="*80)
+        safe_print("\nAutomatically monitors when you start screen sharing")
         print(f"Watching platforms: {', '.join(self.detector.platforms)}")
         print("\nPress Ctrl+C to stop\n")
         
@@ -278,15 +279,15 @@ class AutoScreenShareMonitor:
                 
                 # State changed: started sharing
                 if (not self.was_sharing) and self.share_positive_count >= self.start_confirmations:
-                    print(f"\n📹 Screen sharing detected ({platform})!")
-                    print("🔍 Starting monitor...\n")
+                    safe_print(f"\n[CAMERA] Screen sharing detected ({platform})!")
+                    safe_print("[SCAN] Starting monitor...\n")
                     self.monitor.start_monitoring()
                     self.was_sharing = True
                 
                 # State changed: stopped sharing
                 elif self.was_sharing and self.share_negative_count >= self.stop_confirmations:
-                    print(f"\n📵 Screen sharing stopped")
-                    print("🛑 Stopping monitor...\n")
+                    safe_print(f"\n[STOP] Screen sharing stopped")
+                    safe_print("[STOP] Stopping monitor...\n")
                     self.monitor.stop_monitoring()
                     self.was_sharing = False
                 
@@ -294,10 +295,10 @@ class AutoScreenShareMonitor:
                 time.sleep(self.check_interval)
                 
         except KeyboardInterrupt:
-            print("\n\n⚠️  Shutting down...")
+            safe_print("\n\n[WARN]  Shutting down...")
             if self.was_sharing:
                 self.monitor.stop_monitoring()
-            print("✅ Stopped")
+            safe_print("[OK] Stopped")
 
 
 # ========================================
@@ -326,12 +327,12 @@ class ZoomMonitorIntegration:
         critical = sum(1 for d in detections if getattr(d, 'severity', '') == 'critical')
         
         if critical > 0:
-            print("\n" + "="*80)
-            print("🚨 ZOOM ALERT - CRITICAL CONTENT DETECTED!")
-            print("="*80)
-            print("\n⚠️  RECOMMENDATION: Stop screen share immediately")
-            print("   Click 'Stop Share' in Zoom controls")
-            print("\n" + "="*80 + "\n")
+            safe_print("\n" + "="*80)
+            safe_print("[ALERT] ZOOM ALERT - CRITICAL CONTENT DETECTED!")
+            safe_print("="*80)
+            safe_print("\n[WARN]  RECOMMENDATION: Stop screen share immediately")
+            safe_print("   Click 'Stop Share' in Zoom controls")
+            safe_print("\n" + "="*80 + "\n")
             
             # Could also:
             # - Send Zoom chat message
@@ -340,22 +341,22 @@ class ZoomMonitorIntegration:
     
     def start_with_zoom(self):
         """Start monitoring with Zoom-specific features"""
-        print("🎥 Zoom Monitor Integration")
-        print("Starting monitoring for Zoom screen shares...\n")
+        safe_print("[VIDEO] Zoom Monitor Integration")
+        safe_print("Starting monitoring for Zoom screen shares...\n")
         
         # Detect when Zoom starts
         while not self._is_zoom_running():
-            print("⏳ Waiting for Zoom to start...")
+            safe_print("[WAIT] Waiting for Zoom to start...")
             time.sleep(5)
         
-        print("✅ Zoom detected")
+        safe_print("[OK] Zoom detected")
         
         # Wait for screen share to start
         while not self._is_zoom_sharing():
-            print("⏳ Waiting for screen share to start...")
+            safe_print("[WAIT] Waiting for screen share to start...")
             time.sleep(5)
         
-        print("📹 Screen share detected - starting monitor\n")
+        safe_print("[CAMERA] Screen share detected - starting monitor\n")
         self.monitor.start_monitoring()
         
         # Monitor until share stops
@@ -365,7 +366,7 @@ class ZoomMonitorIntegration:
         except KeyboardInterrupt:
             pass
         
-        print("\n📵 Screen share stopped")
+        safe_print("\n[STOP] Screen share stopped")
         self.monitor.stop_monitoring()
     
     def _is_zoom_running(self) -> bool:
@@ -404,7 +405,7 @@ class TeamsMonitorIntegration:
         # - Create an incident in Teams
         # - Notify security team
         
-        print("\n🔔 TEAMS ALERT - Sensitive content detected in share!")
+        safe_print("\n[NOTIFY] TEAMS ALERT - Sensitive content detected in share!")
 
 
 # ========================================
@@ -483,10 +484,10 @@ def example_manual_trigger():
     def on_press(key):
         try:
             if key == keyboard.Key.f9:  # F9 to start
-                print("\n▶️  Starting monitor...")
+                safe_print("\n[START] Starting monitor...")
                 monitor.start_monitoring()
             elif key == keyboard.Key.f10:  # F10 to stop
-                print("\n⏸️  Stopping monitor...")
+                safe_print("\n[PAUSE] Stopping monitor...")
                 monitor.stop_monitoring()
         except:
             pass
@@ -518,7 +519,7 @@ def example_scheduled_monitoring():
                 monitor.start_monitoring()
         else:
             if monitor.is_monitoring:
-                print(f"🌙 Outside work hours - stopping monitor")
+                safe_print(f"[NIGHT] Outside work hours - stopping monitor")
                 monitor.stop_monitoring()
         
         time.sleep(60)  # Check every minute

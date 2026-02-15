@@ -19,7 +19,9 @@ from datetime import datetime
 from collections import deque
 import json
 import logging
+import sys
 from monitor_runtime.pii_catalog import is_rule_in_scope
+from safe_print import safe_print
 
 RULE_LABELS = {
     "credit_card": "Credit Card Number",
@@ -76,12 +78,12 @@ def _print_readable_alert(detections: List, title_prefix: str = "ALERT"):
         sev = (getattr(d, "severity", "medium") or "medium").lower()
         grouped.setdefault(sev, []).append(d)
     total = len(detections)
-    print(f"\n\n🚨 {title_prefix} {datetime.now().strftime('%H:%M:%S')} | {total} sensitive item(s)")
+    safe_print(f"\n\n[ALERT] {title_prefix} {datetime.now().strftime('%H:%M:%S')} | {total} sensitive item(s)")
     for sev in ["critical", "high", "medium", "low"]:
         items = grouped.get(sev, [])
         if not items:
             continue
-        print(f"\n[{sev.upper()}] {len(items)} item(s)")
+        safe_print(f"\n[{sev.upper()}] {len(items)} item(s)")
         items = sorted(items, key=lambda d: -float(getattr(d, "confidence", 0.0)))
         for i, d in enumerate(items[:8], 1):
             rule = getattr(d, "rule_name", "unknown")
@@ -90,10 +92,10 @@ def _print_readable_alert(detections: List, title_prefix: str = "ALERT"):
             method = getattr(d, "detection_method", "unknown")
             matched = getattr(d, "matched_text", "")[:72]
             reason = _reason_for_detection(d)
-            print(f"  {i}. {label} | conf={conf:.2f} | via={method}")
-            print(f"     evidence: '{matched}'")
-            print(f"     why: {reason}")
-    print()
+            safe_print(f"  {i}. {label} | conf={conf:.2f} | via={method}")
+            safe_print(f"     evidence: '{matched}'")
+            safe_print(f"     why: {reason}")
+    safe_print()
 
 # Import scanners (prefer fixed scanner for better real-time precision)
 FIXED_ML_AVAILABLE = False
@@ -119,7 +121,7 @@ except ImportError:
     SensitiveContentDetector = None
 
 if not FIXED_ML_AVAILABLE and not MODERN_ML_AVAILABLE:
-    print("⚠️  ML scanners not available")
+    safe_print("[WARN]  ML scanners not available")
 
 
 @dataclass
@@ -202,10 +204,10 @@ class RealTimeScreenShareMonitor:
         self.logger = self._build_logger()
         
         # Initialize scanner
-        print(f"🔧 Initializing monitor...")
-        print(f"   Scan interval: {scan_interval}s")
-        print(f"   ML Scanner: {'Enabled' if use_ml else 'Disabled'}")
-        print(f"   GPU: {'Enabled' if use_gpu else 'Disabled'}")
+        safe_print(f"[INIT] Initializing monitor...")
+        safe_print(f"   Scan interval: {scan_interval}s")
+        safe_print(f"   ML Scanner: {'Enabled' if use_ml else 'Disabled'}")
+        safe_print(f"   GPU: {'Enabled' if use_gpu else 'Disabled'}")
         
         if use_ml and FIXED_ML_AVAILABLE:
             self.scanner = FixedMLScanner(
@@ -241,9 +243,9 @@ class RealTimeScreenShareMonitor:
                     use_gpu=use_gpu,
                     model_size='small'
                 )
-                print("   ✓ BERT enrichment enabled (ModernMLScanner)")
+                safe_print("   [OK] BERT enrichment enabled (ModernMLScanner)")
             except Exception as e:
-                print(f"   ⚠️  BERT enrichment disabled: {e}")
+                safe_print(f"   [WARN]  BERT enrichment disabled: {e}")
                 self.secondary_scanner = None
 
         if self.alert_callback is None:
@@ -275,7 +277,7 @@ class RealTimeScreenShareMonitor:
             'suppressed_duplicates': 0
         }
         
-        print("✅ Monitor initialized!")
+        safe_print("[OK] Monitor initialized!")
         self._log_event("monitor_initialized", {
             "scanner_type": self.scanner_type,
             "secondary_scanner": self.secondary_scanner is not None,
@@ -554,12 +556,20 @@ class RealTimeScreenShareMonitor:
     
     def handle_detections(self, results: Dict):
         """Handle detected sensitive content"""
+        raw_detections = results.get('detections', [])
+        print(f"[REALTIME_MONITOR] handle_detections called with {len(raw_detections)} raw detections")
+        
         detections = self._confirm_and_filter_detections(results['detections'], results)
         results['detections'] = detections
         results['total_detections'] = len(detections)
         
+        print(f"[REALTIME_MONITOR] After filtering: {len(detections)} confirmed detections")
+        
         if not detections:
+            print("[REALTIME_MONITOR] No confirmed detections, returning early")
             return
+        
+        print(f"[REALTIME_MONITOR] Processing {len(detections)} detections, alert_callback={self.alert_callback is not None}")
         
         # Add to session
         if self.current_session:
@@ -603,31 +613,46 @@ class RealTimeScreenShareMonitor:
         
         # Call alert callback
         if self.alert_callback:
+            print(f"[REALTIME_MONITOR] Calling alert_callback with {len(detections)} detections")
             try:
                 self.alert_callback(results)
+                print(f"[REALTIME_MONITOR] Alert callback completed successfully")
             except Exception as e:
-                print(f"Error in alert callback: {e}")
+                print(f"[REALTIME_MONITOR] Error in alert callback: {e}")
+                import traceback
+                traceback.print_exc()
                 self._log_event("alert_callback_error", {"error": str(e)}, level="error")
+        else:
+            print(f"[REALTIME_MONITOR] WARNING: No alert_callback set!")
     
     def monitoring_loop(self, monitor_number: int = 1):
         """Main monitoring loop - runs in background thread"""
-        print(f"\n🔍 Starting monitoring loop...")
-        print(f"   Scanning every {self.scan_interval}s")
-        print(f"   Press Ctrl+C to stop\n")
+        safe_print(f"\n[SCAN] Starting monitoring loop...")
+        safe_print(f"   Scanning every {self.scan_interval}s")
+        safe_print(f"   Press Ctrl+C to stop\n")
         
+        scan_count = 0
         while self.is_monitoring:
             try:
+                scan_count += 1
+                if scan_count % 5 == 0:  # Log every 5th scan
+                    print(f"[REALTIME_MONITOR] Scan #{scan_count} - is_monitoring={self.is_monitoring}")
+                
                 # Capture screen
                 frame = self.capture_screen(monitor_number)
                 
                 # Check if frame has changed
                 if not self.has_frame_changed(frame):
                     self.stats['frames_skipped'] += 1
+                    if scan_count % 10 == 0:
+                        print(f"[REALTIME_MONITOR] Frame unchanged, skipping scan")
                     time.sleep(self.scan_interval)
                     continue
                 
                 # Scan frame
+                print(f"[REALTIME_MONITOR] Scanning frame #{scan_count}...")
                 results = self.scan_frame(frame)
+                print(f"[REALTIME_MONITOR] Scan complete: {results.get('total_detections', 0)} raw detections found")
                 
                 # Update session stats
                 if self.current_session:
@@ -646,7 +671,7 @@ class RealTimeScreenShareMonitor:
                 time.sleep(self.scan_interval)
                 
             except Exception as e:
-                print(f"❌ Error in monitoring loop: {e}")
+                safe_print(f"[ERROR] Error in monitoring loop: {e}")
                 self._log_event("monitoring_loop_error", {"error": str(e)}, level="error")
                 time.sleep(self.scan_interval)
 
@@ -656,7 +681,7 @@ class RealTimeScreenShareMonitor:
     
     def _print_progress(self):
         """Print monitoring progress"""
-        print(f"\r📊 Scans: {self.stats['total_scans']} | "
+        safe_print(f"\r[STATS] Scans: {self.stats['total_scans']} | "
               f"Skipped: {self.stats['frames_skipped']} | "
               f"Detections: {self.stats['total_detections']} | "
               f"PendingFiltered: {self.stats['filtered_unconfirmed']} | "
@@ -667,7 +692,7 @@ class RealTimeScreenShareMonitor:
     def start_monitoring(self, monitor_number: int = 1):
         """Start real-time monitoring"""
         if self.is_monitoring:
-            print("⚠️  Monitoring already running")
+            safe_print("[WARN]  Monitoring already running")
             return
         
         # Start new session
@@ -686,8 +711,8 @@ class RealTimeScreenShareMonitor:
         )
         self.monitor_thread.start()
         
-        print(f"✅ Monitoring started!")
-        print(f"   Session ID: {self.current_session.session_id}")
+        safe_print(f"[OK] Monitoring started!")
+        safe_print(f"   Session ID: {self.current_session.session_id}")
         self._log_event("monitoring_started", {
             "session_id": self.current_session.session_id,
             "monitor_number": monitor_number
@@ -696,10 +721,10 @@ class RealTimeScreenShareMonitor:
     def stop_monitoring(self):
         """Stop monitoring"""
         if not self.is_monitoring:
-            print("⚠️  Monitoring not running")
+            safe_print("[WARN]  Monitoring not running")
             return
         
-        print("\n\n🛑 Stopping monitoring...")
+        safe_print("\n\n[STOP] Stopping monitoring...")
         self.is_monitoring = False
         
         # Wait for thread to finish
@@ -710,7 +735,7 @@ class RealTimeScreenShareMonitor:
         if self.current_session:
             self.current_session.end_time = datetime.now()
         
-        print("✅ Monitoring stopped!")
+        safe_print("[OK] Monitoring stopped!")
         self._log_event("monitoring_stopped", {
             "session_id": self.current_session.session_id if self.current_session else None,
             "total_scans": self.stats['total_scans'],
@@ -728,36 +753,36 @@ class RealTimeScreenShareMonitor:
         session = self.current_session
         duration = (session.end_time - session.start_time).total_seconds()
         
-        print("\n" + "="*80)
-        print("📊 SESSION SUMMARY")
-        print("="*80)
-        print(f"\nSession ID: {session.session_id}")
-        print(f"Duration: {duration/60:.1f} minutes")
-        print(f"Total Scans: {session.total_scans}")
-        print(f"Frames Skipped: {self.stats['frames_skipped']}")
-        print(f"Scan Efficiency: {(1 - self.stats['frames_skipped']/max(1, self.stats['total_scans']))*100:.1f}%")
-        print(f"Average Scan Time: {self.stats['avg_scan_time']:.2f}s")
-        print(f"Filtered (Unconfirmed/Low OCR): {self.stats['filtered_unconfirmed']}")
-        print(f"Suppressed (Duplicate Cooldown): {self.stats['suppressed_duplicates']}")
+        safe_print("\n" + "="*80)
+        safe_print("[STATS] SESSION SUMMARY")
+        safe_print("="*80)
+        safe_print(f"\nSession ID: {session.session_id}")
+        safe_print(f"Duration: {duration/60:.1f} minutes")
+        safe_print(f"Total Scans: {session.total_scans}")
+        safe_print(f"Frames Skipped: {self.stats['frames_skipped']}")
+        safe_print(f"Scan Efficiency: {(1 - self.stats['frames_skipped']/max(1, self.stats['total_scans']))*100:.1f}%")
+        safe_print(f"Average Scan Time: {self.stats['avg_scan_time']:.2f}s")
+        safe_print(f"Filtered (Unconfirmed/Low OCR): {self.stats['filtered_unconfirmed']}")
+        safe_print(f"Suppressed (Duplicate Cooldown): {self.stats['suppressed_duplicates']}")
         
-        print(f"\n🔍 Detections:")
-        print(f"   Total: {session.total_detections}")
-        print(f"   Critical: {session.critical_detections}")
-        print(f"   High: {session.high_detections}")
+        safe_print(f"\n[SCAN] Detections:")
+        safe_print(f"   Total: {session.total_detections}")
+        safe_print(f"   Critical: {session.critical_detections}")
+        safe_print(f"   High: {session.high_detections}")
         
         if session.detections:
-            print(f"\n⚠️  Recent Detections:")
+            safe_print(f"\n[WARN]  Recent Detections:")
             for detection in session.detections[-5:]:  # Show last 5
-                print(f"   • [{detection['severity'].upper()}] "
+                safe_print(f"   • [{detection['severity'].upper()}] "
                       f"{detection['rule_name']}: "
                       f"{detection['matched_text']}")
         
-        print("\n" + "="*80)
+        safe_print("\n" + "="*80)
     
     def export_session_report(self, filepath: str = None):
         """Export session report as JSON"""
         if not self.current_session:
-            print("⚠️  No active session")
+            safe_print("[WARN]  No active session")
             return
         
         if filepath is None:
@@ -785,7 +810,7 @@ class RealTimeScreenShareMonitor:
         with open(filepath, 'w') as f:
             json.dump(report, f, indent=2)
         
-        print(f"✅ Report exported to: {filepath}")
+        safe_print(f"[OK] Report exported to: {filepath}")
         self._log_event("session_report_exported", {"path": filepath})
 
 
@@ -808,7 +833,7 @@ def desktop_notification_alert(results: Dict, target_os: str = "auto"):
     import platform
     import subprocess
     
-    title = "⚠️ Sensitive Content Detected!"
+    title = "[WARN] Sensitive Content Detected!"
     message = f"Found {len(detections)} sensitive items\n"
     if critical_count:
         message += f"Critical: {critical_count} "
@@ -861,7 +886,7 @@ def webhook_alert(webhook_url: str):
             return
         
         payload = {
-            'text': f"🚨 Sensitive content detected: {len(detections)} items",
+            'text': f"[ALERT] Sensitive content detected: {len(detections)} items",
             'detections': [
                 {
                     'rule': getattr(d, 'rule_name', 'unknown'),
@@ -884,9 +909,9 @@ def webhook_alert(webhook_url: str):
 def demo_realtime_monitor():
     """Demonstrate real-time monitoring"""
     
-    print("\n" + "="*80)
-    print("🔴 REAL-TIME SCREEN SHARE MONITOR")
-    print("="*80)
+    safe_print("\n" + "="*80)
+    safe_print("[CRITICAL] REAL-TIME SCREEN SHARE MONITOR")
+    safe_print("="*80)
     
     # Create monitor with alert callback
     monitor = RealTimeScreenShareMonitor(
@@ -904,10 +929,10 @@ def demo_realtime_monitor():
         verbose_logging=True
     )
     
-    print("\n📋 Commands:")
-    print("   - Press Enter to start monitoring")
-    print("   - Press Ctrl+C to stop and see summary")
-    print("   - Open sensitive documents to test detection")
+    safe_print("\n[INFO] Commands:")
+    safe_print("   - Press Enter to start monitoring")
+    safe_print("   - Press Ctrl+C to stop and see summary")
+    safe_print("   - Open sensitive documents to test detection")
     
     input("\nPress Enter to start monitoring...")
     
@@ -919,7 +944,7 @@ def demo_realtime_monitor():
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("\n\n⚠️  Stopping...")
+        safe_print("\n\n[WARN]  Stopping...")
         monitor.stop_monitoring()
         
         # Export report

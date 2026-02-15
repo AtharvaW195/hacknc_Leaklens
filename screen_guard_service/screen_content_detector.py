@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import threading
 import time
+from safe_print import safe_print
 
 
 @dataclass
@@ -225,24 +226,24 @@ class SensitiveContentDetector:
 
 def alert_callback(detections: List[Detection]):
     """Example callback function for handling detections"""
-    print("\n" + "="*50)
-    print("⚠️  SENSITIVE CONTENT DETECTED!")
-    print("="*50)
+    safe_print("\n" + "="*50)
+    safe_print("[WARN]  SENSITIVE CONTENT DETECTED!")
+    safe_print("="*50)
     
     for detection in detections:
         severity_icon = {
-            "low": "ℹ️",
-            "medium": "⚠️",
-            "high": "🔴",
-            "critical": "🚨"
-        }.get(detection.severity, "⚠️")
+            "low": "[INFO]",
+            "medium": "[WARN]",
+            "high": "[CRITICAL]",
+            "critical": "[ALERT]"
+        }.get(detection.severity, "[WARN]")
         
-        print(f"\n{severity_icon} {detection.severity.upper()}: {detection.rule_name}")
-        print(f"   Description: {detection.description}")
-        print(f"   Matched: {detection.matched_text[:50]}...")  # Truncate for safety
-        print(f"   Time: {detection.timestamp.strftime('%H:%M:%S')}")
+        safe_print(f"\n{severity_icon} {detection.severity.upper()}: {detection.rule_name}")
+        safe_print(f"   Description: {detection.description}")
+        safe_print(f"   Matched: {detection.matched_text[:50]}...")  # Truncate for safety
+        safe_print(f"   Time: {detection.timestamp.strftime('%H:%M:%S')}")
     
-    print("\n" + "="*50 + "\n")
+    safe_print("\n" + "="*50 + "\n")
 
 
 # Example usage and demo

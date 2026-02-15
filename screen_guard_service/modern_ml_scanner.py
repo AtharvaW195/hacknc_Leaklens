@@ -21,6 +21,7 @@ except ImportError:
     cv2 = None
     CV2_AVAILABLE = False
 import re
+from safe_print import safe_print
 
 # Core ML imports (install via requirements)
 try:
@@ -28,7 +29,7 @@ try:
     EASYOCR_AVAILABLE = True
 except ImportError:
     EASYOCR_AVAILABLE = False
-    print("⚠️  EasyOCR not available. Install: pip install easyocr")
+    safe_print("[WARN]  EasyOCR not available. Install: pip install easyocr")
 
 try:
     from transformers import pipeline, AutoTokenizer, AutoModelForTokenClassification
@@ -36,14 +37,14 @@ try:
     TRANSFORMERS_AVAILABLE = True
 except ImportError:
     TRANSFORMERS_AVAILABLE = False
-    print("⚠️  Transformers not available. Install: pip install transformers torch")
+    safe_print("[WARN]  Transformers not available. Install: pip install transformers torch")
 
 try:
     import spacy
     SPACY_AVAILABLE = True
 except ImportError:
     SPACY_AVAILABLE = False
-    print("⚠️  Spacy not available. Install: pip install spacy")
+    safe_print("[WARN]  Spacy not available. Install: pip install spacy")
 
 
 @dataclass
@@ -87,9 +88,9 @@ class ModernMLScanner:
         self.model_size = model_size
         self.languages = languages
         
-        print(f"🚀 Initializing Modern ML Scanner...")
-        print(f"   Device: {self.device}")
-        print(f"   Model Size: {model_size}")
+        safe_print(f"[INIT] Initializing Modern ML Scanner...")
+        safe_print(f"   Device: {self.device}")
+        safe_print(f"   Model Size: {model_size}")
         
         # Initialize OCR
         self._init_ocr()
@@ -100,25 +101,25 @@ class ModernMLScanner:
         # Initialize regex patterns (fallback)
         self._init_regex_patterns()
         
-        print("✅ Scanner initialized!")
+        safe_print("[OK] Scanner initialized!")
     
     def _init_ocr(self):
         """Initialize OCR engine"""
         if EASYOCR_AVAILABLE:
-            print("   Loading EasyOCR...")
+            safe_print("   Loading EasyOCR...")
             self.ocr_reader = easyocr.Reader(
                 self.languages,
                 gpu=self.device == 'cuda',
                 verbose=False
             )
             self.ocr_method = 'easyocr'
-            print("   ✓ EasyOCR loaded")
+            safe_print("   [OK] EasyOCR loaded")
         else:
             # Fallback to pytesseract
             import pytesseract
             self.ocr_reader = None
             self.ocr_method = 'tesseract'
-            print("   ✓ Using Tesseract (fallback)")
+            safe_print("   [OK] Using Tesseract (fallback)")
     
     def _init_nlp_models(self):
         """Initialize NLP models for NER and classification"""
@@ -126,11 +127,11 @@ class ModernMLScanner:
         self.pii_detector = None
         
         if not TRANSFORMERS_AVAILABLE:
-            print("   ⚠️  Transformers not available, using regex only")
+            safe_print("   [WARN]  Transformers not available, using regex only")
             return
         
         try:
-            print("   Loading NER model...")
+            safe_print("   Loading NER model...")
             # Load pre-trained NER model for PII detection
             self.ner_model = pipeline(
                 "ner",
@@ -138,24 +139,24 @@ class ModernMLScanner:
                 device=0 if self.device == 'cuda' else -1,
                 aggregation_strategy="simple"
             )
-            print("   ✓ NER model loaded")
+            safe_print("   [OK] NER model loaded")
             
             # Load PII-specific model if available
             try:
-                print("   Loading PII detection model...")
+                safe_print("   Loading PII detection model...")
                 self.pii_detector = pipeline(
                     "token-classification",
                     model="lakshyakh93/deberta_finetuned_pii",
                     device=0 if self.device == 'cuda' else -1,
                     aggregation_strategy="simple"
                 )
-                print("   ✓ PII detector loaded")
+                safe_print("   [OK] PII detector loaded")
             except:
-                print("   ⚠️  PII detector not available (using NER only)")
+                safe_print("   [WARN]  PII detector not available (using NER only)")
                 self.pii_detector = None
             
         except Exception as e:
-            print(f"   ⚠️  Could not load NLP models: {e}")
+            safe_print(f"   [WARN]  Could not load NLP models: {e}")
             self.ner_model = None
             self.pii_detector = None
     
@@ -487,35 +488,35 @@ class ModernMLScanner:
 def display_ml_results(results: Dict):
     """Display scan results in a formatted way"""
     
-    print("\n" + "="*80)
-    print("🔍 ML SCANNER RESULTS")
-    print("="*80)
+    safe_print("\n" + "="*80)
+    safe_print("[SCAN] ML SCANNER RESULTS")
+    safe_print("="*80)
     
-    print(f"\n📊 Scan Metadata:")
-    print(f"   Processing Time: {results['processing_time']:.3f}s")
+    safe_print(f"\n[STATS] Scan Metadata:")
+    safe_print(f"   Processing Time: {results['processing_time']:.3f}s")
     if 'ocr_confidence' in results:
-        print(f"   OCR Confidence: {results['ocr_confidence']:.2%}")
-        print(f"   OCR Method: {results['ocr_method']}")
+        safe_print(f"   OCR Confidence: {results['ocr_confidence']:.2%}")
+        safe_print(f"   OCR Method: {results['ocr_method']}")
     if 'methods_used' in results:
         methods = results['methods_used']
-        print(f"   Methods: NER={'✓' if methods['ner'] else '✗'}, "
-              f"Regex={'✓' if methods['regex'] else '✗'}, "
-              f"OCR={'✓' if methods['ocr'] else '✗'}")
+        safe_print(f"   Methods: NER={'[OK]' if methods['ner'] else '[X]'}, "
+              f"Regex={'[OK]' if methods['regex'] else '[X]'}, "
+              f"OCR={'[OK]' if methods['ocr'] else '[X]'}")
     
     detections = results['detections']
     
     if not detections:
-        print("\n✅ No sensitive content detected!")
+        safe_print("\n[OK] No sensitive content detected!")
         return
     
-    print(f"\n⚠️  FOUND {len(detections)} SENSITIVE ITEM(S)")
-    print("="*80)
+    safe_print(f"\n[WARN]  FOUND {len(detections)} SENSITIVE ITEM(S)")
+    safe_print("="*80)
     
     severity_icons = {
-        'low': 'ℹ️',
-        'medium': '⚠️',
-        'high': '🔴',
-        'critical': '🚨'
+        'low': '[INFO]',
+        'medium': '[WARN]',
+        'high': '[CRITICAL]',
+        'critical': '[ALERT]'
     }
     
     # Sort by severity
@@ -524,17 +525,17 @@ def display_ml_results(results: Dict):
                                key=lambda d: severity_order.get(d.severity, 4))
     
     for i, detection in enumerate(sorted_detections, 1):
-        icon = severity_icons.get(detection.severity, '⚠️')
-        print(f"\n{icon} Detection #{i}")
-        print(f"   Type: {detection.rule_name}")
-        print(f"   Severity: {detection.severity.upper()}")
-        print(f"   Method: {detection.detection_method}")
-        print(f"   Confidence: {detection.confidence:.2%}")
-        print(f"   Matched: {detection.matched_text[:60]}...")
+        icon = severity_icons.get(detection.severity, '[WARN]')
+        safe_print(f"\n{icon} Detection #{i}")
+        safe_print(f"   Type: {detection.rule_name}")
+        safe_print(f"   Severity: {detection.severity.upper()}")
+        safe_print(f"   Method: {detection.detection_method}")
+        safe_print(f"   Confidence: {detection.confidence:.2%}")
+        safe_print(f"   Matched: {detection.matched_text[:60]}...")
         if detection.context:
-            print(f"   Context: ...{detection.context[:50]}...")
+            safe_print(f"   Context: ...{detection.context[:50]}...")
     
-    print("\n" + "="*80)
+    safe_print("\n" + "="*80)
     
     # Summary by severity
     severity_counts = {}
