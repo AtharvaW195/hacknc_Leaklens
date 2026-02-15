@@ -6,7 +6,7 @@
 [![Coverage](https://img.shields.io/badge/coverage-95%25-brightgreen?style=flat-square)](https://github.com/yourusername/pasteguard)
 [![Standard Library](https://img.shields.io/badge/stdlib-only-success?style=flat-square)](https://golang.org/pkg/)
 
->Leaklensis a lightweight, real-time secret detection tool that prevents accidental leaks by identifying passwords, API keys, JWTs, and private keys at the moment they’re pasted or shared.
+>Leaklens is a lightweight, real-time secret detection tool that prevents accidental leaks by identifying passwords, API keys, JWTs, and private keys at the moment they’re pasted or shared.
 Built with security-first design, it offers automatic redaction, deterministic output, and CLI/HTTP modes for easy integration into modern workflows.
 
 ## ✨ Features
