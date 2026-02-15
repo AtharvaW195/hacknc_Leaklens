@@ -1,0 +1,180 @@
+{
+  "session_id": "session_20260214_215612",
+  "start_time": "2026-02-14T21:56:12.842815",
+  "end_time": null,
+  "duration_seconds": null,
+  "total_scans": 6,
+  "total_detections": 23,
+  "critical_detections": 1,
+  "high_detections": 19,
+  "detections": [
+    {
+      "timestamp": "2026-02-14T21:56:29.215643",
+      "rule_name": "swift_bic",
+      "severity": "medium",
+      "confidence": 0.8,
+      "matched_text": "TERMINAL"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:29.215647",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "high",
+      "confidence": 0.8536009314931415,
+      "matched_text": "(recommended"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:29.215649",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "high",
+      "confidence": 0.8216551268307596,
+      "matched_text": "ldjkfjsdfvljsdbfvls"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:29.215651",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "high",
+      "confidence": 0.8103088089962882,
+      "matched_text": "MONITOR_MODE-auto"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:29.215652",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "high",
+      "confidence": 0.8041029954378031,
+      "matched_text": "MONITOR_PLATFORMS-zoom"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:29.215654",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "high",
+      "confidence": 0.8053086239681907,
+      "matched_text": "MONITOR_ENSEMBLE_ALL-true"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:29.215656",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "high",
+      "confidence": 0.8082115503520669,
+      "matched_text": "MONITOR_FOCUS_PROFILE-pii"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:43.576892",
+      "rule_name": "swift_bic",
+      "severity": "medium",
+      "confidence": 0.8,
+      "matched_text": "TERMINAL"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:43.576895",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "high",
+      "confidence": 0.8536009314931415,
+      "matched_text": "(recommended"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:43.576897",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "high",
+      "confidence": 0.8216551268307596,
+      "matched_text": "ldjkfjsdfvljsdbfvls"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:43.576899",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "high",
+      "confidence": 0.8103088089962882,
+      "matched_text": "MONITOR_MODE-auto"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:43.576900",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "high",
+      "confidence": 0.8041029954378031,
+      "matched_text": "MONITOR_PLATFORMS-zoom"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:43.576901",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "high",
+      "confidence": 0.8053086239681907,
+      "matched_text": "MONITOR_ENSEMBLE_ALL-true"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:43.576903",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "high",
+      "confidence": 0.8082115503520669,
+      "matched_text": "MONITOR_FOCUS_PROFILE-pii"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:52.126656",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "high",
+      "confidence": 0.8239081111688037,
+      "matched_text": "conf-0.80"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:59.554383",
+      "rule_name": "swift_bic",
+      "severity": "medium",
+      "confidence": 0.8,
+      "matched_text": "TERMINAL"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:59.554387",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "high",
+      "confidence": 0.8536009314931415,
+      "matched_text": "(recommended"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:59.554389",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "high",
+      "confidence": 0.8216551268307596,
+      "matched_text": "ldjkfjsdfvljsdbfvls"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:59.554390",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "high",
+      "confidence": 0.8103088089962882,
+      "matched_text": "MONITOR_MODE-auto"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:59.554392",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "high",
+      "confidence": 0.8041029954378031,
+      "matched_text": "MONITOR_PLATFORMS-zoom"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:59.554393",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "high",
+      "confidence": 0.8053086239681907,
+      "matched_text": "MONITOR_ENSEMBLE_ALL-true"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:59.554395",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "high",
+      "confidence": 0.8082115503520669,
+      "matched_text": "MONITOR_FOCUS_PROFILE-pii"
+    },
+    {
+      "timestamp": "2026-02-14T21:56:59.554397",
+      "rule_name": "contextual_sensitive_token",
+      "severity": "critical",
+      "confidence": 0.8774359629358138,
+      "matched_text": "via-contextual_nlp"
+    }
+  ],
+  "stats": {
+    "frames_skipped": 0,
+    "avg_scan_time": 4.326401034990947,
+    "filtered_unconfirmed": 30,
+    "suppressed_duplicates": 15,
+    "scanner_type": "fixed_ml"
+  }
+}

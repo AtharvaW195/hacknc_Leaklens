@@ -1,0 +1,38 @@
+{
+  "run_id": "run_20260214_215557_0aa03144",
+  "created_at": "2026-02-14T21:55:57.967800",
+  "host": {
+    "platform": "macOS-26.2-arm64-arm-64bit",
+    "system": "Darwin",
+    "release": "25.2.0",
+    "python_version": "3.10.19",
+    "node": "Yashs-MacBook-Pro-884.local"
+  },
+  "args": {
+    "mode": "auto",
+    "scan_interval": 1.5,
+    "check_interval": 3.0,
+    "platforms": "zoom,slack",
+    "start_confirmations": 2,
+    "stop_confirmations": 2,
+    "monitor_number": 1,
+    "min_confidence": 0.8,
+    "confirmation_frames": 2,
+    "confirmation_window": 3,
+    "alert_cooldown_seconds": 12,
+    "report_file": null,
+    "use_ner": false,
+    "ensemble_all": true,
+    "focus_profile": "pii_full",
+    "disable_bert_enrichment": false,
+    "disable_adaptive_context": false,
+    "no_ml": false,
+    "cpu_only": false,
+    "quiet": false,
+    "target_os": "auto",
+    "desktop_notifications": false,
+    "output_dir": "monitor_output"
+  },
+  "completed_at": "2026-02-14T21:57:02.659287",
+  "session_report_file": "monitor_output/runs/run_20260214_215557_0aa03144/session_report.json"
+}

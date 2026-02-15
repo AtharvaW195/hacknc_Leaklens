@@ -1,0 +1,116 @@
+# Modern ML Scanner Requirements
+# High-accuracy sensitive content detection
+
+# ==========================================
+# CORE DEPENDENCIES
+# ==========================================
+
+# Computer Vision & OCR
+opencv-python>=4.8.0
+numpy>=1.24.0
+Pillow>=10.0.0
+
+# EasyOCR - Superior to Tesseract (95%+ accuracy)
+easyocr>=1.7.0
+
+# Alternative/Fallback OCR
+pytesseract>=0.3.10  # Fallback if EasyOCR unavailable
+
+# Screen capture
+mss>=9.0.0
+
+# ==========================================
+# MACHINE LEARNING / NLP
+# ==========================================
+
+# Transformers for NER and PII detection
+transformers>=4.35.0
+torch>=2.1.0  # For GPU acceleration
+# For CPU only, use: torch>=2.1.0+cpu
+
+# Additional ML libraries
+sentencepiece>=0.1.99  # Required by some transformer models
+protobuf>=3.20.0
+
+# Spacy (optional, for additional NER)
+spacy>=3.7.0
+# After install, run: python -m spacy download en_core_web_sm
+
+# ==========================================
+# UTILITIES
+# ==========================================
+
+# Data handling
+pandas>=2.0.0
+
+# Progress bars
+tqdm>=4.66.0
+
+# For API integrations
+requests>=2.31.0
+
+# ==========================================
+# GPU ACCELERATION (OPTIONAL)
+# ==========================================
+
+# For NVIDIA GPUs (much faster):
+# torch>=2.1.0 --index-url https://download.pytorch.org/whl/cu118
+# 
+# For Apple Silicon (M1/M2):
+# torch>=2.1.0
+# Install with: pip install torch torchvision torchaudio
+
+# ==========================================
+# OPTIONAL ENHANCEMENTS
+# ==========================================
+
+# For improved visual pattern detection
+# tensorflow>=2.15.0  # Alternative to PyTorch
+# keras>=2.15.0
+
+# For additional NLP capabilities
+# nltk>=3.8.1
+# textblob>=0.17.1
+
+# For production monitoring
+# prometheus-client>=0.19.0
+
+# For logging
+# python-json-logger>=2.0.7
+
+# ==========================================
+# DEVELOPMENT / TESTING
+# ==========================================
+
+# jupyter>=1.0.0
+# notebook>=7.0.0
+# ipykernel>=6.27.0
+# matplotlib>=3.8.0  # For visualizations
+
+# ==========================================
+# NOTES
+# ==========================================
+
+# Installation options:
+#
+# 1. CPU-only (lighter, slower):
+#    pip install -r requirements_ml.txt
+#
+# 2. With GPU support (recommended for production):
+#    pip install torch --index-url https://download.pytorch.org/whl/cu118
+#    pip install -r requirements_ml.txt
+#
+# 3. Apple Silicon (M1/M2):
+#    pip install -r requirements_ml.txt
+#    (PyTorch has native M1/M2 support)
+#
+# 4. After installation, download spacy model:
+#    python -m spacy download en_core_web_sm
+#
+# 5. EasyOCR will auto-download models on first run
+#    (requires ~500MB for English model)
+
+# Memory requirements:
+# - Minimum: 4GB RAM
+# - Recommended: 8GB RAM
+# - With GPU: 4GB VRAM (NVIDIA)
